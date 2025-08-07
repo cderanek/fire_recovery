@@ -1,0 +1,14 @@
+data/*
+*.tif*
+*.csv
+*.h5
+joblog*
+*.kml
+*.shp
+*.prj
+*.dbf
+*.shx
+*.nc
+*.GeoJSON
+*.xml
+*.zip
