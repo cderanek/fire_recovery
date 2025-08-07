@@ -12,3 +12,4 @@ joblog*
 *.GeoJSON
 *.xml
 *.zip
+**__pycache__**

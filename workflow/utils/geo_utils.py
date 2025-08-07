@@ -9,55 +9,6 @@ from typing import Union, Tuple
 
 NumericType = Union[int, float]
 
-
-def export_to_tiff(
-        rxr_obj:xr.DataArray,
-        out_path:str,
-        dtype_out:str,
-        nodata:NumericType=-9999
-)->str:
-    '''
-    Export an xarray object to a GeoTIFF file.
-    
-    Parameters:
-        rxr_obj (xarray.DataArray): Raster to export
-        out_path (str): Output file path
-        dtype_out (str): Data type to store raster values, int16 is smallest that allows -9999 nodata val
-        nodata (int): No-data value
-        
-    Returns:
-        str: Path to the exported file
-        
-    dtypes allowed:
-        uint8: Unsigned 8-bit integer (0 to 255)
-        uint16: Unsigned 16-bit integer (0 to 65,535)
-        uint32: Unsigned 32-bit integer (0 to 4,294,967,295)
-        int8: Signed 8-bit integer (-128 to 127)
-        **int16: Signed 16-bit integer (-32,768 to 32,767)**
-            ** Commonly used for INTEGER VALUES, allows for -9999 dtype
-        int32: Signed 32-bit integer (-2,147,483,648 to 2,147,483,647)
-        **float32: 32-bit floating point (approximately ±3.4*10^38 with 7 significant digits)**
-            ** Commonly used for FLOAT VALUES, allows for -9999 dtype
-        float64: 64-bit floating point (approximately ±1.8*10^308 with 15 significant digits)
-        complex64: Complex number with two 32-bit floats
-        complex128: Complex number with two 64-bit floats
-    '''
-    (
-        rxr_obj.fillna(NODATA)
-        .rio.set_nodata(NODATA, inplace=True)
-        .rio.to_raster(
-                out_path, 
-                driver='GTiff', 
-                dtype=dtype_out, 
-                nodata=NODATA)
-    )
-
-    print('Successfully saved {rxr_obj.name} to {out_path}.', flush=True)
-    
-    return out_path
-
-
-
 def clip_raster_to_poly(
     rxr_obj:xr.DataArray,
     poly_path:str
@@ -83,7 +34,7 @@ def clip_raster_to_poly(
 def buffer_firepoly(
     fire_shp_path:str, 
     buffer_distance:NumericType=10000
-)->Tuple[pd.GeoDataFrame, str]:
+)->Tuple[pd.DataFrame, str]:
     """
     Buffer a fire polygon shapefile by a specified distance and ensure it's not a multipolygon.
     
@@ -120,7 +71,7 @@ def buffer_firepoly(
 
     return fire_poly, out_f
 
-    
+
 
 def reproj_align_rasters(
     reproj_type:str,
@@ -153,16 +104,51 @@ def reproj_align_rasters(
     else:
         resampled_rxrL = [resampled_rxr.rio.reproject(target_crs) for resampled_rxr in args]
 
-    # # Visually check that rasters align
-    # target_shape = target_raster.data.shape
-    # for resampled_rxr in resampled_rxrL:
-    #     # Visually check that rasters align
-    #     print('AFTER REPROJECTING:')
-    #     print('Shapes:\t', target_shape, resampled_rxr.data.shape)
-    #     try: print('CRS:\t', target_crs, resampled_rxr['spatial_ref'].attrs['crs_wkt'])
-    #     except: pass
-    #     try: print('GeoTr:\t', list(zip(target_raster['spatial_ref'].attrs['GeoTransform'].split(' '), resampled_rxr['spatial_ref'].attrs['GeoTransform'].split(' '))))
-    #     except: pass
-    #     print()
-        
     return target_raster, *resampled_rxrL
+
+
+def export_to_tiff(
+        rxr_obj:xr.DataArray,
+        out_path:str,
+        dtype_out:str,
+        nodata:NumericType=-9999
+)->str:
+    '''
+    Export an xarray object to a GeoTIFF file.
+    
+    Parameters:
+        rxr_obj (xarray.DataArray): Raster to export
+        out_path (str): Output file path
+        dtype_out (str): Data type to store raster values, int16 is smallest that allows -9999 nodata val
+        nodata (int): No-data value
+        
+    Returns:
+        str: Path to the exported file
+        
+    dtypes allowed:
+        uint8: Unsigned 8-bit integer (0 to 255)
+        uint16: Unsigned 16-bit integer (0 to 65,535)
+        uint32: Unsigned 32-bit integer (0 to 4,294,967,295)
+        int8: Signed 8-bit integer (-128 to 127)
+        **int16: Signed 16-bit integer (-32,768 to 32,767)**
+            ** Commonly used for INTEGER VALUES, allows for -9999 dtype
+        int32: Signed 32-bit integer (-2,147,483,648 to 2,147,483,647)
+        **float32: 32-bit floating point (approximately ±3.4*10^38 with 7 significant digits)**
+            ** Commonly used for FLOAT VALUES, allows for -9999 dtype
+        float64: 64-bit floating point (approximately ±1.8*10^308 with 15 significant digits)
+        complex64: Complex number with two 32-bit floats
+        complex128: Complex number with two 64-bit floats
+    '''
+    (
+        rxr_obj.fillna(nodata)
+        .rio.set_nodata(nodata, inplace=True)
+        .rio.to_raster(
+                out_path, 
+                driver='GTiff', 
+                dtype=dtype_out, 
+                nodata=nodata)
+    )
+
+    print('Successfully saved {rxr_obj.name} to {out_path}.', flush=True)
+    
+    return out_path
