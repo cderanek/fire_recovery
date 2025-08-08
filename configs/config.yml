@@ -1,0 +1,54 @@
+### GENERAL SETTINGS ####
+ROI: 'data/ROI/california.shp'
+
+### GET_BASELAYERS ####
+LANDFIRE_PRODUCTS: 
+  # Topo
+  Asp:
+    link: 'https://landfire.gov/data-downloads/US_Topo_2020/LF2020_Asp_220_CONUS.zip'
+    checksum: 'bbd49eaf6c9cae26c0b3e6d532907b98'
+    size_gb: 8.47 
+    dir_name: 'data/baselayers/temp/Asp/'
+
+  Elev:
+    link: 'https://landfire.gov/data-downloads/US_Topo_2020/LF2020_Elev_220_CONUS.zip'
+    checksum: 'd1741fb0feed925e529a97e1a859d1f6'
+    size_gb: 8.41
+    dir_name: 'data/baselayers/temp/Elev/'
+
+  Slope:
+    link: 'https://landfire.gov/data-downloads/US_Topo_2020/LF2020_SlpD_220_CONUS.zip'
+    checksum: '8b030a77cb457b25ca75215821cb7c9e'
+    size_gb: 
+    dir_name: 'data/baselayers/temp/Slp/'
+
+  # Disturbance
+  Disturbance:
+    link: 'https://landfire.gov/data-downloads/AnnualDist/AnnualDisturbance_1999_present.zip'
+    checksum: 'b560a8b69c1ef416fc69a157e7872766'
+    size_gb: 1.6
+    dir_name: 'data/baselayers/temp/US_DIST/'
+
+BASELAYERS:
+  topo: 
+    fname: 'data/baselayers/asp_slope_anydist.nc'
+    dtype: ''
+    var_names: []
+    dims: []
+  annual_dist: 
+    fname: 'data/baselayers/annual_dist_withagrdevmask.nc'
+    dtype: ''
+    var_names: []
+    dims: []
+  groupings: 
+    fname: 'data/baselayers/annual_veg_grouping_withagrdevmask.nc'
+    dtype: ''
+    var_names: []
+    dims: []
+  mtbs_sev:
+    fname: 'data/baselayers/annual_mtbs_sev.nc'
+    dtype: ''
+    var_names: []
+    dims: []
+  mtbs_poly:
+    fname: 'data/baselayers/all_mtbs_poly.shp'
