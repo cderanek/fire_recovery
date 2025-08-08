@@ -14,4 +14,5 @@ dependencies:
   - pandas=2.2.2
   - geopandas=1.0.1
   - shapely=2.0.5
+  - gdal=3.9.1
   - requests

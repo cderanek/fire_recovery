@@ -29,7 +29,7 @@ class TestLandfireClip:
         # For each unzipped/clipped product, check that it has a CRS using gdalinfo
 
     def check_disturbance_values(self):
-        # Pulling from the smaller clipped test files, check a few sampled disturbance values
+        # Pulling from the smaller clipped test files, check a few sampled disturbance values (use some gdal functionality to do this quickly?)
 
     def check_topo_values(self):
         # Pulling from the smaller clipped test files, check a few sampled topo values
