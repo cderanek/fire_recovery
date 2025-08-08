@@ -13,3 +13,4 @@ joblog*
 *.xml
 *.zip
 **__pycache__**
+.snakemake/*
