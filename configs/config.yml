@@ -1,4 +1,5 @@
 ### GENERAL SETTINGS ####
+NOTIFY_EMAIL: 'caderanek@g.ucla.edu'
 ROI: 'data/ROI/california.shp'
 
 ### GET_BASELAYERS ####

@@ -1,5 +1,7 @@
 ### Define targets for the full workflow (coming soon) ###
-
+# rule all:
+#     input:
+#         # tbd
 
 
 ### Download baselayers for full ROI ###
@@ -26,10 +28,10 @@ rule get_landfire:
 
     output: 
         ## TEMP output of downloading initial CONUS-wide files
-        # LANDFIRE\
+        # LANDFIRE
         done_flag="data/baselayers/{prod}_processed.done",
 
-        ## DATA PROVENANCE info (date downloaded, version, metadata, etc)
+        ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir='data/baselayers/downloadlogs_metadata/{prod}'
 
         # Small output clipped from permanent output (these will be used for testing)
@@ -42,10 +44,10 @@ rule get_landfire:
         checksum=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['checksum'],
         dir_name=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['dir_name'],
         conda_env='RIO_GPD',
-        email='caderanek@g.ucla.edu'
+        email=config['NOTIFY_EMAIL']
     
     resources:
-        mem_gb=30,
+        mem_gb=20,
         runtime=24,
         cpus=1
 
@@ -70,37 +72,3 @@ rule get_landfire:
              {input.ROI} \
              {output.done_flag}
         """
-        # """
-        # qsub workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
-        #     "{log.joblog}" \
-        #     {resources.runtime}:00:00 \
-        #     {resources.mem_gb} \
-        #     {params.conda_env} \
-        #     {wildcards.prod} \
-        #     "{params.link}" \
-        #     {params.checksum} \
-        #     "{params.dir_name}" \
-        #     {output.metadata_dir}\
-        #     {input.ROI} \
-        #     {output.done_flag} > {log.joblog} 2>&1
-        # """
-        # """
-        # python workflow/get_baselayers/download_clip_landfire.py \
-        #     {wildcards.prod} \
-        #     {params.link} \
-        #     {params.checksum} \
-        #     {params.dir_name} \
-        #     {output.metadata_dir}\
-        #     {input.ROI}  > {log.joblog} 2>&1
-        # touch {output.done_flag}
-        # """
-    # script: 
-    #     # first, wget landfire, MTBS, RAP data
-    #     'workflow/get_baselayers/download_clip_landfire.py {input.ROI} {output.temp_dist_dir} {output.temp_topo_dir}' 
-    #     'workflow/get_baselayers/download_mtbs.py' 
-    #     'workflow/get_baselayers/download_rap.py' 
-    #     # then, process landfire, MTBS, RAP data into convenient rxr objects with timexlatxlon dimensions
-    #     'workflow/get_baselayers/make_hdist'
-    #     'workflow/get_baselayers/make_topo.py'
-    #     'workflow/get_baselayers/make_landfire_evt.py'
-    #     'workflow/get_baselayers/make_mtbs_merged.py'
