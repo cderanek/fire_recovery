@@ -25,7 +25,7 @@ LANDFIRE_PRODUCTS:
   # Disturbance
   Disturbance:
     link: 'https://landfire.gov/data-downloads/AnnualDist/AnnualDisturbance_1999_present.zip'
-    checksum: 'b560a8b69c1ef416fc69a157e7872766'
+    checksum: 'e10283678d922c97a1d1bd53dd1d5174'
     size_gb: 1.6
     dir_name: 'data/baselayers/temp/US_DIST/'
 

@@ -14,3 +14,4 @@ joblog*
 *.zip
 **__pycache__**
 .snakemake/*
+logs/*

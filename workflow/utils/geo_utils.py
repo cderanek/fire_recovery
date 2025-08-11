@@ -5,6 +5,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pyproj
+import subprocess
+import re
 from typing import Union, Tuple
 
 NumericType = Union[int, float]
@@ -111,7 +113,8 @@ def export_to_tiff(
         rxr_obj:xr.DataArray,
         out_path:str,
         dtype_out:str,
-        nodata:NumericType=-9999
+        nodata:NumericType=-9999,
+        compression:str='LZW'
 )->str:
     '''
     Export an xarray object to a GeoTIFF file.
@@ -139,16 +142,49 @@ def export_to_tiff(
         complex64: Complex number with two 32-bit floats
         complex128: Complex number with two 64-bit floats
     '''
+    if isinstance(rxr_obj, xr.Dataset):
+        for var in rxr_obj.rio.vars:
+            rxr_obj[var].rio.set_nodata(nodata, inplace=True)
+    else: rxr_obj.rio.set_nodata(nodata, inplace=True)
     (
         rxr_obj.fillna(nodata)
-        .rio.set_nodata(nodata, inplace=True)
         .rio.to_raster(
                 out_path, 
                 driver='GTiff', 
                 dtype=dtype_out, 
-                nodata=nodata)
+                nodata=nodata,
+                compress=compression)
     )
 
-    print('Successfully saved {rxr_obj.name} to {out_path}.', flush=True)
+    print(f'Successfully saved rxr object to {out_path}.', flush=True)
     
     return out_path
+
+
+def get_crs(
+    f:str, 
+    crs_type:str='wkt2_2019'
+)->str:
+        wkt = subprocess.run(['gdalsrsinfo', f, '-o', crs_type], capture_output=True, text=True).stdout
+        return pyproj.CRS(wkt)
+
+
+def get_gdalinfo(f:str)->dict:
+    output = {}
+    gdalinfo = subprocess.run(['gdalinfo', f], capture_output=True, text=True).stdout
+
+    dtype_match = re.search(r'.*? Type=(\w+)', gdalinfo)
+    if dtype_match:
+        dtype_in = np.dtype(dtype_match.group(1).lower())
+        output['dtype'] = dtype_in
+    else:
+        print(f'WARNING: No dtype found in gdalinfo for {f}.')
+    
+    nodata_match = re.search(r'NoData Value=([-?\d\.]+)', gdalinfo)
+    if nodata_match:
+        nodata_in = np.array(nodata_match.group(1)).astype(dtype_in)
+        output['nodata'] = nodata_in
+    else:
+        print(f'WARNING: No nodataval found in gdalinfo for {f}.')
+    
+    return output
