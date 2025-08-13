@@ -1,6 +1,8 @@
 ### GENERAL SETTINGS ####
 NOTIFY_EMAIL: 'caderanek@g.ucla.edu'
 ROI: 'data/ROI/california.shp'
+START_YEAR: 1990
+END_YEAR: 2020
 
 ### GET_BASELAYERS ####
 LANDFIRE_PRODUCTS: 
@@ -29,6 +31,11 @@ LANDFIRE_PRODUCTS:
     checksum: 'e10283678d922c97a1d1bd53dd1d5174'
     size_gb: 1.6
     dir_name: 'data/baselayers/temp/US_DIST/'
+
+RAP_PRODUCTS:
+  veg_cover_link_prefix: '/vsicurl/http://rangeland.ntsg.umt.edu/data/rap/rap-vegetation-cover/v3/' # Script will add .tif info for years from 1989-2024
+  checksum_ref: 'data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv'
+  dir_name: 'data/baselayers/temp/RAP/'
 
 BASELAYERS:
   topo: 

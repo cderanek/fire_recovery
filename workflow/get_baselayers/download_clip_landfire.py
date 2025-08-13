@@ -5,7 +5,8 @@ import xarray as xr
 import pyproj
 
 sys.path.append("workflow/utils")
-from geo_utils import export_to_tiff, get_crs, get_gdalinfo
+from geo_utils import export_to_tiff, get_crs, get_gdalinfo, calculate_bbox, format_roi
+from file_utils import confirm_checksum
 
 def download_landfire(prod_name, prod_link, prod_checksum, download_dir):
     # Download .zip file
@@ -79,21 +80,6 @@ def unzip(prod_name:str, download_dir:str, f:str):
     return f.replace('.zip', '/')
 
 
-def confirm_checksum(f:str, checksum:str):
-    try:
-        result = subprocess.run(['md5sum', f], capture_output=True, text=True)
-        download_checksum = (result.stdout.split(' ')[0])
-    except subprocess.CalledProcessError as e:
-        print(f'Error calculating check sum: {e}', flush=True)
-        print(e.stderr, flush=True)
-
-    if download_checksum != checksum:
-        sys.exit(f'CHECKSUM ERROR FOR {prod_name}.\nDownload checksum {download_checksum} did not match {prod_checksum}.\nPlease delete {os.path.basename(f)} after inspection.')
-
-    print(f'Checksum matches for {prod_name}.\n {download_checksum}={prod_checksum}', flush=True)
-    return True
-
-
 def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
     print(f'Currently clipping {f}')
     gdalinfo = get_gdalinfo(f)
@@ -143,23 +129,6 @@ def save_metadata(download_dir:str, metadata_dir:str):
     os.system(f'cp -r {download_dir}**/**/Tif/*.tfw {clip_dir}')
 
     pass
-
-
-def format_roi(ROI: str):
-    # Get shapefile to later calculate bounding box
-    ROI = gpd.read_file(ROI)
-    ROI = ROI.explode(index_parts=False)
-    ROI['area'] = ROI.explode(index_parts=False).area
-    ROI = ROI[ROI['area']==ROI['area'].max()] # Just get the polygon for mainland CA, not the little islands
-
-    return ROI
-
-def calculate_bbox(ROI:gpd.GeoDataFrame, crs:pyproj.CRS):
-    ROI_reproj = ROI.to_crs(crs)
-    minx, miny, maxx, maxy = tuple(*list(ROI_reproj.bounds.to_records(index=False)))
-
-    return minx, miny, maxx, maxy
-
 
 
 if __name__ == '__main__':

@@ -164,7 +164,7 @@ def export_to_tiff(
 def get_crs(
     f:str, 
     crs_type:str='wkt2_2019'
-)->str:
+)->pyproj.CRS:
         wkt = subprocess.run(['gdalsrsinfo', f, '-o', crs_type], capture_output=True, text=True).stdout
         return pyproj.CRS(wkt)
 
@@ -188,3 +188,18 @@ def get_gdalinfo(f:str)->dict:
         print(f'WARNING: No nodataval found in gdalinfo for {f}.')
     
     return output
+
+def calculate_bbox(ROI:gpd.GeoDataFrame, crs:pyproj.CRS):
+    ROI_reproj = ROI.to_crs(crs)
+    minx, miny, maxx, maxy = tuple(*list(ROI_reproj.bounds.to_records(index=False)))
+
+    return minx, miny, maxx, maxy
+
+def format_roi(ROI: str):
+    # Get shapefile to later calculate bounding box
+    ROI = gpd.read_file(ROI)
+    ROI = ROI.explode(index_parts=False)
+    ROI['area'] = ROI.explode(index_parts=False).area
+    ROI = ROI[ROI['area']==ROI['area'].max()] # Just get the polygon for mainland CA, not the little islands
+
+    return ROI
