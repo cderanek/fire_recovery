@@ -74,12 +74,10 @@ if __name__ == '__main__':
             # Convert int8
             rap_ds[band].data[:] = np.where(np.isnan(rap_ds[band].data), -128, rap_ds[band].data)
             rap_ds[band].data[:] = np.where((rap_ds[band].data<0) | (rap_ds[band].data>100), -128, rap_ds[band].data)
-            rap_ds_out = rap_ds[band]
-            rap_ds_out = rap_ds_out.astype('int8')
+            rap_ds[band] = rap_ds[band].rio.set_nodata(-128).astype('int8')
             # export to tif
             (
-                rap_ds_out
-                .rio.set_nodata(-128)
+                rap_ds[band]
                 .rio.to_raster(
                     out_f.replace('.tif',f'_{band}.tif'),
                     dtype='int8', 
@@ -88,7 +86,7 @@ if __name__ == '__main__':
                 )
             )
             print(f'Completed band {band}')
-        rap_ds.to_netcdf(out_f.replace('.tif', '.nc'))
+        rap_ds.rio.set_nodata(-128).astype('int8').to_netcdf(out_f.replace('.tif', '.nc'))
         print(f'Converted to int8 and exported to single-band tifs and multiband nc.', flush=True)
 
         # # Confirm checksum Checksums WON'T MATCH b/c not downloading full extent
