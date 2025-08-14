@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import sys, glob, os, gc
 sys.path.append("workflow/utils")
 from geo_utils import reproj_align_rasters
+sys.path.append("/u/project/eordway/shared/surp_cd/timeseries/visualization")
+from color_palettes import veg_color_palette
+
 '''
 This script creates KDEs showing the distribution of RAP % cover for each RAP band for each EVT class. 
 Note that this is a messier testing/preliminary exploration script (not part of make workflow), and contains
@@ -44,8 +47,9 @@ evt_raster = '/u/project/eordway/shared/surp_cd/timeseries_data/data/CA_wide_rea
 rap_types = ['annual_forb_grass','perennial_forb_grass', 'shrub', 'tree']
 rap_rasters_pattern = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/RAP/vegetation-cover-v3-2020_*.tif'
 os.makedirs('/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/', exist_ok=True)
-summary_csv_out = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/summary_rap_evt_counts.csv'
+summary_csv_out = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/summary_rap_evt_counts_jointdistr.csv'
 fig_out = '/u/project/eordway/shared/surp_cd/fire_recovery/results/rap_exploratory_analysis/'
+JOINT_DISTR = True
 
 evt_groups_dict = {
     1.0: 'Closed tree canopy',
@@ -77,6 +81,7 @@ if not os.path.exists(summary_csv_out):
     ## Summary CSV format, each row is a non-ag/dev pixel: | EVT_code | EVT_name | RAP_type | percent_cover |
     # create list to hold all rows
     summary_rows = []
+    summary_df_exists = False
 
     # apply ag_dev mask, no EVT mask
     evt_valid_mask = (evt_da['ag_dev_mask']==0) & (evt_da.data > 0) & (evt_da.data < 12) & (evt_da.data != 5)
@@ -103,37 +108,67 @@ if not os.path.exists(summary_csv_out):
         print(np.min(rap_values), np.max(rap_values))
         print(len(rap_values), len(evt_values))
 
-        # pd df to hold evtXrap data
-        temp_df = pd.DataFrame({
-                'EVT': evt_values,
-                'percent_cover': rap_values
-            })
+        if not JOINT_DISTR:
+            # pd df to hold evtXrap data
+            temp_df = pd.DataFrame({
+                    'EVT': evt_values,
+                    'percent_cover': rap_values
+                })
 
+            # summarize # of pixels for each unique percent cover, EVT type
+            grouped = temp_df.groupby(['EVT', 'percent_cover']).size().reset_index()
+            grouped.columns = ['EVT', 'percent_cover', 'pixel_count']
+            grouped['RAP_type'] = rap_name
+            grouped = grouped[['EVT', 'RAP_type', 'percent_cover', 'pixel_count']]
+
+            # append to main list of rows
+            summary_rows.append(grouped)
+
+            print(f'Finished summarizing percent cover data for {rap_name}')
+
+        if JOINT_DISTR:
+            # pd df to hold evtXrap data
+            if not summary_df_exists:
+                summary_df = pd.DataFrame({
+                        'EVT': evt_values,
+                        f'{rap_name}_percent_cover': rap_values
+                    }).astype('int8')
+                summary_df_exists = True
+            else:
+                summary_df[f'{rap_name}_percent_cover'] = rap_values
+
+        del evt_values, rap_values, rap_da
+        gc.collect()
+
+    if not JOINT_DISTR:  
+        # Combine all RAP types
+        print("\nCombining results...")
+        summary_df = pd.concat(summary_rows, ignore_index=True)
+
+        # Sort by EVT, RAP_type, percent_cover
+        summary_df = summary_df.sort_values(['EVT', 'RAP_type', 'percent_cover']).reset_index(drop=True)
+
+        print(summary_df)
+        summary_df = summary_df[(summary_df['percent_cover'] != 0) & (summary_df['EVT'] != 0)]
+        summary_df['EVT'] = summary_df['EVT'].map(evt_groups_dict)
+        summary_df.to_csv(summary_csv_out)
+
+    if JOINT_DISTR:
         # summarize # of pixels for each unique percent cover, EVT type
-        grouped = temp_df.groupby(['EVT', 'percent_cover']).size().reset_index()
-        grouped.columns = ['EVT', 'percent_cover', 'pixel_count']
-        grouped['RAP_type'] = rap_name
-        grouped = grouped[['EVT', 'RAP_type', 'percent_cover', 'pixel_count']]
-
-        # append to main list of rows
-        summary_rows.append(grouped)
-
-        print(f'Finished summarizing percent cover data for {rap_name}')
-
-    # Combine all RAP types
-    print("\nCombining results...")
-    summary_df = pd.concat(summary_rows, ignore_index=True)
-
-    # Sort by EVT, RAP_type, percent_cover
-    summary_df = summary_df.sort_values(['EVT', 'RAP_type', 'percent_cover']).reset_index(drop=True)
-    print(summary_df)
-    summary_df.to_csv(summary_csv_out)
-
-else:
-    summary_df = pd.read_csv(summary_csv_out)
-    summary_df = summary_df[(summary_df['percent_cover'] != 0) & (summary_df['EVT'] != 0)]
-    summary_df['EVT'] = summary_df['EVT'].map(evt_groups_dict)
-
+        print(summary_df.columns.tolist())
+        print(summary_df)
+        for evt in np.unique(summary_df['EVT']):
+            if evt != 0:
+                summary_df_subset = summary_df[summary_df['EVT'] == evt]
+                grouped = summary_df_subset.astype('int8').groupby(summary_df_subset.columns.tolist()).size().reset_index()
+                grouped.columns = summary_df.columns.tolist() + ['pixel_count']
+                print(grouped.columns.tolist())
+                # grouped.sort_values(summary_df.columns)
+                grouped['EVT'] = grouped['EVT'].map(evt_groups_dict)
+                print(grouped)
+                grouped.to_csv(summary_csv_out.replace('.csv', f'_{evt_groups_dict[evt]}.csv'))
+    
+    
 ## Create histograms
 
 ## NOTE: Claude generated this function -- not in final analysis, just for early exploration of RAP vs EVT veg types
@@ -290,7 +325,60 @@ def create_evt_rap_visualization(df, out_f):
 
     plt.savefig(out_f)
 
-for evt in np.unique(summary_df['EVT']):
-    summary_df_subset = summary_df[summary_df['EVT'] == evt]
-    f = f'{fig_out}{evt}.png'
-    create_evt_rap_visualization(summary_df_subset, f)
+
+def plot_joint_density(df, x_col, y_col, out_f):
+    """
+    Create a simple joint density plot with marginal distributions, weighted by pixel counts.
+    
+    Parameters:
+    df (DataFrame): Your data
+    x_col (str): Column name for x-axis 
+    y_col (str): Column name for y-axis
+    weight_col (str): Column name for weights (default: 'pixel_count')
+    """
+    # Expand data based on pixel counts
+    sns.jointplot(data=df, x=x_col, y=y_col, hue='EVT', kind='hex', palette=veg_color_palette)
+    plt.xlim(0,100)
+    plt.ylim(0,100)
+    plt.savefig(out_f)
+    plt.clf()
+
+
+if not JOINT_DISTR:
+    summary_df = pd.read_csv(summary_csv_out)
+    for evt in np.unique(summary_df['EVT']):
+        summary_df_subset = summary_df[summary_df['EVT'] == evt]
+        f = f'{fig_out}{evt}.png'
+        create_evt_rap_visualization(summary_df_subset, f)
+
+if JOINT_DISTR:
+    sampled_rows = []
+    for evt in evt_groups_dict.values():
+        try:
+            if (evt != 'Non-vegetated') & (evt != 'Sparsely vegetated'):
+                # sample rows proportional to number of pixels
+                summary_df = pd.read_csv(summary_csv_out.replace('.csv', f'_{evt}.csv'))
+                summary_df = summary_df.sample(n=100000, weights='pixel_count', replace=True)
+                summary_df['forb_grass_percent_cover'] = summary_df['annual_forb_grass_percent_cover'] + summary_df['perennial_forb_grass_percent_cover'] 
+                summary_df['EVT'] = evt
+                sampled_rows.append(summary_df)
+        except Exception as e:
+            print(f'Failed to add EVT {evt}. Error: {e}')
+            print('Skipping.')
+
+    summary_df = pd.concat(sampled_rows, ignore_index=True)
+    print(summary_df)
+    g = sns.PairGrid(data=summary_df[['EVT', 'forb_grass_percent_cover', 'shrub_percent_cover', 'tree_percent_cover']], hue='EVT', palette=veg_color_palette)
+    g.map_upper(plt.hexbin, gridsize=10)
+    g.map_lower(sns.kdeplot)
+    g.map_diag(sns.kdeplot)
+    g.add_legend()
+    g.savefig(fig_out + f'jointdistr_pairplot.png')
+    plt.clf()
+
+    plot_joint_density(summary_df, 'annual_forb_grass_percent_cover', 'perennial_forb_grass_percent_cover', fig_out + f'jointdistr_annual_perennial_sampled.png')
+    plot_joint_density(summary_df, 'forb_grass_percent_cover', 'shrub_percent_cover', fig_out + f'jointdistr_forbgrass_shrub_sampled.png')
+    plot_joint_density(summary_df, 'shrub_percent_cover', 'tree_percent_cover', fig_out + f'jointdistr_shrub_tree_sampled.png')
+    plot_joint_density(summary_df, 'forb_grass_percent_cover', 'tree_percent_cover', fig_out + f'jointdistr_forbgrass_tree_sampled.png')
+
+    
