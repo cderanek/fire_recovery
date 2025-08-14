@@ -7,6 +7,8 @@ import pandas as pd
 import pyproj
 import subprocess
 import re
+import os
+import json
 from typing import Union, Tuple
 
 NumericType = Union[int, float]
@@ -171,22 +173,41 @@ def get_crs(
 
 def get_gdalinfo(f:str)->dict:
     output = {}
-    gdalinfo = subprocess.run(['gdalinfo', f], capture_output=True, text=True).stdout
+    gdalinfo_json = subprocess.run(['gdalinfo', '-json', f], capture_output=True, text=True).stdout
+    gdalinfo_dict = json.loads(gdalinfo_json)
 
-    dtype_match = re.search(r'.*? Type=(\w+)', gdalinfo)
-    if dtype_match:
-        dtype_in = np.dtype(dtype_match.group(1).lower())
-        output['dtype'] = dtype_in
+    # For .nc with subdatasets
+    if 'SUBDATASETS' in gdalinfo_dict['metadata'].keys():
+        # Iterate over all subdatasets
+        for metadata_key in gdalinfo_dict['metadata']['SUBDATASETS'].keys():
+            if '_NAME' in metadata_key:
+                subdataset_name = gdalinfo_dict['metadata']['SUBDATASETS'][metadata_key]
+                output[subdataset_name] = get_gdalinfo(subdataset_name)
+
     else:
-        print(f'WARNING: No dtype found in gdalinfo for {f}.')
-    
-    nodata_match = re.search(r'NoData Value=([-?\d\.]+)', gdalinfo)
-    if nodata_match:
-        nodata_in = np.array(nodata_match.group(1)).astype(dtype_in)
-        output['nodata'] = nodata_in
-    else:
-        print(f'WARNING: No nodataval found in gdalinfo for {f}.')
-    
+        # For tif or subdataset
+        # If only 1 band, don't nest bands
+        bands = gdalinfo_dict['bands']
+        if len(bands) == 1:
+            output['dtype'] = bands[0]['type']
+            output['nodata'] = bands[0]['noDataValue']
+        else:
+            band_num = band['band']
+            for band in bands:
+                try:
+                    try:
+                        band_name = band['description']
+                    except:
+                        band_name = band['metadata']['']['NETCDF_VARNAME']
+                except:
+                    band_name = band_num # just default to band number if we can't find a name
+
+                output[band_num] = {
+                    'dtype': bands[0]['type'],
+                    'nodata': bands[0]['noDataValue']
+                    'name': band_name
+                }
+
     return output
 
 def calculate_bbox(ROI:gpd.GeoDataFrame, crs:pyproj.CRS):
