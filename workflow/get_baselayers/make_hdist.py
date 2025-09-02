@@ -8,7 +8,7 @@ import sys, os, gc
 sys.path.append("workflow/utils")
 from geo_utils import get_crs, reproj_align_rasters
 
-def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, valid_yrs=range(1999,2024)):
+def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, dtype_out='int8', xdim='x', ydim='y', timedim='time', valid_yrs=range(1999,2024)):
     '''Returns:
     an rxr object with dims (time, y, x)
         bands = 
@@ -57,7 +57,7 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, valid_yrs=range(19
                                 sev_layer.squeeze()
                             ], 
                             axis=0),
-                        nan=-128).astype('int8')
+                        nan=-128).astype(dtype_out)
             except:
                 print(f'WARNING: {curr_yr} not a valid year.', flush=True)
                 
@@ -67,7 +67,7 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, valid_yrs=range(19
     
     # Sum up each year's annual cumulative disturbance rasters
     print(f'Adding cumulative annual disturbance variable', flush=True)
-    annual_dist_da.cumulative_annual_dist.data[:] = annual_dist_da.annual_dist.cumsum(dim='time', dtype='int8').astype('int8')
+    annual_dist_da.cumulative_annual_dist.data[:] = annual_dist_da.annual_dist.cumsum(dim=timedim, dtype=dtype_out).astype(dtype_out)
     
     print(f'Adding spatial properties, nodata vals', flush=True)
     annual_dist_da.annual_dist.rio.set_nodata(NO_DIST_VAL, inplace=True)
@@ -79,7 +79,11 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, valid_yrs=range(19
     print(f'Saving annual disturbance, and annual cumulative disturbance to {out_f}', flush=True)
     annual_dist_da.to_netcdf(out_f, format='NETCDF4', engine='netcdf4')
     print(f'Successfully saved annual_dist_da\n{annual_dist_da}', flush=True)
-    
+
+    # Save summary of data structure
+    with open({out_f.replace('.nc', '_summary.txt')}, 'w') as f:
+        print(annual_dist_da, file=f)
+        
     del annual_dist_da
     gc.collect()
     
@@ -104,7 +108,7 @@ def create_dist_template(all_dist_paths, NO_DIST_VAL, valid_yrs, clipBBox):
         .rio.write_crs(template_crs)
     )
     template_rxr.attrs['_FillValue'] = NO_DIST_VAL
-    template_rxr.data = np.full(template_rxr.data.shape, fill_value=NO_DIST_VAL, dtype='int8')
+    template_rxr.data = np.full(template_rxr.data.shape, fill_value=NO_DIST_VAL, dtype=dtype_out)
     
     if clipBBox != None: 
         clipBBox = clipBBox.to_crs(template_rxr.spatial_ref.crs_wkt)
@@ -112,11 +116,11 @@ def create_dist_template(all_dist_paths, NO_DIST_VAL, valid_yrs, clipBBox):
 
     # create a template to hold all years disturbance + cumulative disturbance    
     annual_dist_rxrL = [template_rxr.copy().expand_dims(time=[np.datetime64('-'.join([str(yr), '12', '31']), 'ns')]) for yr in valid_yrs]
-    annual_dist_da = xr.concat(annual_dist_rxrL, dim='time').transpose('band', 'time', 'y', 'x').astype('int8')
+    annual_dist_da = xr.concat(annual_dist_rxrL, dim=timedim).transpose('band', timedim, ydim, xdim).astype(dtype_out)
     annual_dist_da = xr.Dataset({
         'annual_dist': annual_dist_da.squeeze(dim='band', drop=True),  # Remove band dimension if present
         'cumulative_annual_dist': annual_dist_da.squeeze(dim='band', drop=True)
-    }).transpose('time', 'y', 'x').astype('int8')
+    }).transpose(timedim, ydim, xdim).astype(dtype_out)
 
     return template_rxr, annual_dist_da
 
@@ -127,7 +131,10 @@ if __name__ == '__main__':
     annual_dist_dir = sys.argv[1]
     merged_nc_out_f = sys.argv[2]
     nodataval = sys.argv[3]
-    start_year, end_year = int(sys.argv[4]), int(sys.argv[5])
-    done_flag_f = sys.argv[6]
+    dtype_out = sys.argv[4]
+    xdim, ydim, timedim = sys.argv[5], sys.argv[6], sys.argv[7]
+    start_year, end_year = int(sys.argv[8]), int(sys.argv[9])
+    done_flag = sys.argv[10]
 
-    make_hdist(annual_dist_dir, merged_nc_out_f, clipBBox=None, NO_DIST_VAL=nodataval, valid_yrs=range(start_year,end_year))
+    make_hdist(annual_dist_dir, merged_nc_out_f, clipBBox=None, NO_DIST_VAL=nodataval, dtype_out=dtype_out, xdim=xdim, ydim=ydim, timedim=timedim, valid_yrs=range(start_year,end_year))
+    subprocess.run(['touch', done_flag])

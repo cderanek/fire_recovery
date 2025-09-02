@@ -14,7 +14,7 @@ snakemake --lint
 snakemake --dry-run
 snakemake -c 1
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
-snakemake -c 1 --latency-wait 86400 --max-jobs-per-second 1 --jobs 50 --keep-going
+snakemake -c 1 --latency-wait 86400 --max-jobs-per-second 1 --jobs 50 --keep-going --immediate-submit --notemp
 
 # TODO:
 later -- consider cleanup of subprocess.run, to be more robust to other operating systems
@@ -25,16 +25,21 @@ TOPO: **
 
 CLIM: wait until after submit landfire download job
 
-VEG: Waiting to decide RAP or MODIS?
+VEG: Waiting to decide RAP or MODIS or LANDFIRE EVT?
 
 HDIST: TESTING NOW
 . /u/local/Modules/default/init/modules.sh
 module load anaconda3
 conda activate RIO_GPD
+cd /u/project/eordway/shared/surp_cd/fire_recovery
 python workflow/get_baselayers/make_hdist.py \
     "/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/US_DIST/" \
     "data/baselayers/annual_dist_withagrdevmask.nc" \
     "0" \
+    "int8" \
+    "x" \
+    "y" \
+    "time" \
     "1999" \
     "2024" \
     "data/baselayers/hdist_merged.done"

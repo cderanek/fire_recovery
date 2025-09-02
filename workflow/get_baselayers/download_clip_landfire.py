@@ -123,7 +123,7 @@ def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
 def save_metadata(download_dir:str, metadata_dir:str):
     os.makedirs(metadata_dir, exist_ok=True)
     clip_dir = f'{download_dir}clipped/'
-    os.makedirs(metadata_dir, exist_ok=True)
+    os.makedirs(clip_dir, exist_ok=True)
 
     def find_dir(base_dir, folder_name):
         matches = glob.glob(f'{base_dir}**/{folder_name}/', recursive=True)
@@ -139,7 +139,7 @@ def save_metadata(download_dir:str, metadata_dir:str):
     else: print(f'No .xml metadata found in {download_dir}')
 
     if csv_source:
-        os.system(f'cp {metadata_source}*.csv {metadata_dir}')
+        os.system(f'cp {csv_source}*.csv {metadata_dir}')
     else: print(f'No .csv metadata found in {download_dir}')
 
     if tif_source:

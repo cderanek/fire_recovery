@@ -5,9 +5,13 @@ CONDA_ENV=$1
 ANNUAL_DIST_DIR=$2
 MERGED_OUT_PATH=$3
 NODATAVAL=$4
-START_YR=$5
-END_YR=$6
-DONE_FLAG=$7
+DTYPE=$5
+XDIM=$6
+YDIM=$7
+TIMEDIM=$8
+START_YR=$9
+END_YR=$10
+DONE_FLAG=$11
 
 . /u/local/Modules/default/init/modules.sh
 module load anaconda3
@@ -17,6 +21,10 @@ python workflow/get_baselayers/make_hdist.py \
     "$ANNUAL_DIST_DIR" \
     "$MERGED_OUT_PATH" \
     "$NODATAVAL" \
+    "$DTYPE" \
+    "$XDIM" \
+    "$YDIM" \
+    "$TIMEDIM" \
     "$START_YR" \
     "$END_YR" \
     "$DONE_FLAG"

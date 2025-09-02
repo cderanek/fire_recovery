@@ -25,12 +25,50 @@ LANDFIRE_PRODUCTS:
     size_gb: -1
     dir_name: 'data/baselayers/temp/Slp/'
 
-  # Disturbance
   Disturbance:
     link: 'https://landfire.gov/data-downloads/AnnualDist/AnnualDisturbance_1999_present.zip'
     checksum: 'e10283678d922c97a1d1bd53dd1d5174'
     size_gb: 1.6
     dir_name: 'data/baselayers/temp/US_DIST/'
+    start_year: 1999
+    end_year: 2024
+
+  EVT_2001:
+    link: 'https://landfire.gov/data-downloads/US_105/US_105_EVT.zip'
+    checksum: '3fc7060826d51f79f3a35e4abc3bf35c'
+    size_gb: 3.16
+    dir_name: 'data/baselayers/temp/EVT/'
+
+  EVT_2016:
+    link: 'https://landfire.gov/data-downloads/US_200/LF2016_EVT_200_CONUS.zip'
+    checksum: '4b31eb36ef71906c28536b850c8419dd'
+    size_gb: 3.43
+    dir_name: 'data/baselayers/temp/EVT/'
+
+  EVT_2020:
+    link: 'https://landfire.gov/data-downloads/US_220/LF2020_EVT_220_CONUS.zip'
+    checksum: '73f6582b1fb848929d659f6c819a4314'
+    size_gb: 3.66
+    dir_name: 'data/baselayers/temp/EVT/'
+
+  EVT_2022:
+    link: 'https://landfire.gov/data-downloads/US_230/LF2022_EVT_230_CONUS.zip'
+    checksum: '7bf70b6a2f2c90c36e770649347168c7'
+    size_gb: 2.61
+    dir_name: 'data/baselayers/temp/EVT/'
+
+  EVT_2023:
+    link: 'https://landfire.gov/data-downloads/US_240/LF2023_EVT_240_CONUS.zip'
+    checksum: '4b1ec30a29126bea3b78e56a92e9e473'
+    size_gb: 3.79
+    dir_name: 'data/baselayers/temp/EVT/'
+
+  EVT_2024:
+    link: 'https://landfire.gov/data-downloads/US_250/LF2024_EVT_250_CONUS.zip'
+    checksum: '5e6f68a1c88c269b2edc1780688e04d5'
+    size_gb: 1.27
+    dir_name: 'data/baselayers/temp/EVT/'
+    
 
 RAP_PRODUCTS:
   veg_cover_link_prefix: '/vsicurl/http://rangeland.ntsg.umt.edu/data/rap/rap-vegetation-cover/v3/' # Script will add .tif info for years from 1989-2024
@@ -39,6 +77,11 @@ RAP_PRODUCTS:
 
 
 BASELAYERS:
+  agdev_mask: 
+    fname: 'data/baselayers/agdev_mask.nc'
+    dtype: 'int8'
+    var_names: []
+    dims: []
   topo: 
     fname: 'data/baselayers/asp_slope_anydist.nc'
     dtype: ''
@@ -46,10 +89,13 @@ BASELAYERS:
     dims: []
   annual_dist: 
     fname: 'data/baselayers/annual_dist_withagrdevmask.nc'
-    dtype: ''
+    dtype: 'int8'
     nodataval: 0 # meaning, we have no record of disturbance here
     var_names: []
-    dims: []
+    dims:
+      xdim: 'x'
+      ydim: 'y'
+      timedim: 'time'
   groupings: 
     fname: 'data/baselayers/annual_veg_grouping_withagrdevmask.nc'
     dtype: ''

@@ -22,10 +22,18 @@ rule get_baselayers:
         # Baselayers outputs
         # config['BASELAYERS']['groupings']['fname'],
         # config['BASELAYERS']['topo']['fname'],
-        # config['BASELAYERS']['annual_dist']['fname'],
+        config['BASELAYERS']['annual_dist']['fname'],
         # config['BASELAYERS']['mtbs_sev']['fname'],
         # config['BASELAYERS']['mtbs_poly']['fname']
         # still need to add test cases for small ROIs + add path to small ROIs in config
+
+    output:
+        done_flag="data/baselayers/all_baselayers_merged.done"
+
+    shell:
+        """
+        touch {output.done_flag}
+        """
 
 
 # Rule for landfire download
@@ -39,7 +47,7 @@ rule get_landfire:
         done_flag="data/baselayers/landfire_{prod}_processed.done",
 
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
-        metadata_dir='data/baselayers/downloadlogs_metadata/{prod}'
+        metadata_dir=directory('data/baselayers/downloadlogs_metadata/{prod}')
 
         # Small output clipped from permanent output (these will be used for testing)
 
@@ -80,6 +88,7 @@ rule get_landfire:
              {output.done_flag}
         """
 
+
 # Rule for RAP download
 rule get_rap:
     input:
@@ -104,7 +113,7 @@ rule get_rap:
         email=config['NOTIFY_EMAIL']
     
     resources:
-        mem_gb=60, # original download is float32 dtype -- request more memory to open/convert to int8
+        mem_gb=60,
         runtime=12,
         cpus=1
 
@@ -126,5 +135,112 @@ rule get_rap:
              {params.year} \
              {input.ROI} \
              {params.dir_name} \
+             {output.done_flag}
+        """
+
+
+rule make_hdist:
+    input:
+        "data/baselayers/landfire_Disturbance_processed.done", # need to have successfully downloaded all the disturbance data
+
+    output: 
+        # Output flag for merged agdev mask .nc
+        merged_out_path=config['BASELAYERS']['annual_dist']['fname'],
+        done_flag="data/baselayers/make_hdist.done"
+
+        # Small output clipped from permanent output (these will be used for testing)
+
+    log:
+        "logs/make_hdist.log"
+
+    params:
+        annual_dist_dir=config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name'],
+        dtype=config['BASELAYERS']['annual_dist']['dtype'],
+        xdim=config['BASELAYERS']['annual_dist']['dims']['xdim'],
+        ydim=config['BASELAYERS']['annual_dist']['dims']['ydim'],
+        timedim=config['BASELAYERS']['annual_dist']['dims']['timedim'],
+        start_year=config['LANDFIRE_PRODUCTS']['Disturbance']['start_year'],
+        end_year=config['LANDFIRE_PRODUCTS']['Disturbance']['end_year'],
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    resources:
+        mem_gb=100,
+        runtime=12,
+        cpus=1
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    shell:
+        """
+        qsub -cwd \
+             -o {log} \
+             -j y \
+             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
+             -M {params.email} \
+             -m bea \
+             workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
+             {params.conda_env} \
+             {params.annual_dist_dir} \
+             {output.merged_out_path} \
+             {params.nodataval} \
+             {params.dtype} \
+             {params.xdim} \
+             {params.ydim} \
+             {params.timedim} \
+             {params.start_year} \
+             {params.end_year} \
+             {output.done_flag}
+        """
+        
+        
+rule make_agdevmask:
+    input:
+        "data/baselayers/landfire_Disturbance_processed.done", # need to have successfully downloaded all the disturbance data
+        "data/baselayers/landfire_EVT_2001_processed.done",
+        "data/baselayers/landfire_EVT_2016_processed.done",
+        "data/baselayers/landfire_EVT_2020_processed.done",
+        "data/baselayers/landfire_EVT_2022_processed.done",
+        "data/baselayers/landfire_EVT_2023_processed.done",
+        "data/baselayers/landfire_EVT_2024_processed.done"
+
+    output: 
+        # Output flag for merged agdev mask .nc
+        merged_out_path=config['BASELAYERS']['agdev_mask']['fname'],
+        done_flag="data/baselayers/agdev_mask.done"
+
+        # Small output clipped from permanent output (these will be used for testing)
+
+    log:
+        "logs/agdev_mask.log"
+
+    params:
+        evt_dir=config['LANDFIRE_PRODUCTS']['EVT_2001']['dir_name'],
+        dtype=config['BASELAYERS']['agdev_mask']['dtype'],
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    resources:
+        mem_gb=100,
+        runtime=12,
+        cpus=1
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    shell:
+        """
+        qsub -cwd \
+             -o {log} \
+             -j y \
+             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
+             -M {params.email} \
+             -m bea \
+             workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
+             {params.conda_env} \
+             {params.evt_dir} \
+             {output.merged_out_path} \
+             {params.dtype} \
              {output.done_flag}
         """
