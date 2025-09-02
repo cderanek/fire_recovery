@@ -25,7 +25,7 @@ rule get_baselayers:
         # config['BASELAYERS']['annual_dist']['fname'],
         # config['BASELAYERS']['mtbs_sev']['fname'],
         # config['BASELAYERS']['mtbs_poly']['fname']
-        # still need to add RAP
+        # still need to add test cases for small ROIs + add path to small ROIs in config
 
 
 # Rule for landfire download
