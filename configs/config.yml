@@ -78,7 +78,7 @@ RAP_PRODUCTS:
 
 BASELAYERS:
   agdev_mask: 
-    fname: 'data/baselayers/agdev_mask.nc'
+    fname: 'data/baselayers/agdev_mask.tif'
     dtype: 'int8'
     var_names: []
     dims: []

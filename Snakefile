@@ -1,5 +1,6 @@
 configfile: "configs/config.yml"
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
+BASELAYER_FILES = list(config['BASELAYERS'].keys())
 start_year, end_year = config['START_YEAR'], config['END_YEAR']
 YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
@@ -20,11 +21,9 @@ rule get_baselayers:
         # RAP input, annual
         expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
         # Baselayers outputs
-        # config['BASELAYERS']['groupings']['fname'],
-        # config['BASELAYERS']['topo']['fname'],
         config['BASELAYERS']['annual_dist']['fname'],
-        # config['BASELAYERS']['mtbs_sev']['fname'],
-        # config['BASELAYERS']['mtbs_poly']['fname']
+        # Eventually replace individual baselayers AND the origianl landfire/rap files with:
+        # expand(config['BASELAYERS'][{prod}]['fname'], prod=BASELAYER_FILES),
         # still need to add test cases for small ROIs + add path to small ROIs in config
 
     output:
