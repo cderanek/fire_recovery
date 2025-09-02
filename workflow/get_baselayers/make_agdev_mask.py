@@ -32,7 +32,7 @@ def update_agdev_mask(r, rat, ag_dev_mask_combined, dtype_out):
 
 def create_agdev_mask(evt_dir, merged_out_path, dtype_out):
     # glob
-    all_evt_tifs = glob.glob()
+    all_evt_tifs = glob.glob(f'{evt_dir}clipped/*_clipped.tif')
     template_tif = all_evt_tifs[0]
     template_r = rxr.open_rasterio(template_tif)
 
@@ -57,3 +57,7 @@ if __name__ == "__main__":
     merged_out_path = sys.argv[2]
     dtype_out = sys.argv[3]
     done_flag = sys.argv[4]
+    
+    create_agdev_mask(evt_dir, merged_out_path, dtype_out)
+    
+    subprocess.run(['touch', done_flag])

@@ -57,11 +57,13 @@ def download_zip(prod_name:str, prod_link:str, prod_checksum:str, download_dir:s
     try:
         os.makedirs(download_dir, exist_ok=True)
         subprocess.run(['wget', '-q', '-P', download_dir, prod_link])
+        print(f'Downloaded {prod_link} to {download_dir}.')
     except subprocess.CalledProcessError as e:
         print(f'Failed to download {prod_name}: {e}', flush=True)
         print(e.stderr, flush=True)
 
-    downloaded_f = glob.glob(f'{download_dir}*.zip')[0]
+    if '/' != download_dir[-1]: download_dir += '/'
+    downloaded_f = glob.glob(f'{download_dir}{prod_link.split('/')[-1]}')[0]
     print(f'Successfully downloaded file {downloaded_f}', flush=True)
     return downloaded_f
     

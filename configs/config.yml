@@ -26,8 +26,8 @@ LANDFIRE_PRODUCTS:
     dir_name: 'data/baselayers/temp/Slp/'
 
   Disturbance:
-    link: 'https://landfire.gov/data-downloads/AnnualDist/AnnualDisturbance_1999_present.zip'
-    checksum: 'e10283678d922c97a1d1bd53dd1d5174'
+    link: 'https://landfire.gov/data-downloads/AnnualDist/USAnnualDisturbance_1999_present.zip'
+    checksum: '6d8113b25dae963fc5080dc4a3d8fd52'
     size_gb: 1.6
     dir_name: 'data/baselayers/temp/US_DIST/'
     start_year: 1999
