@@ -17,29 +17,59 @@ snakemake -c 1
 snakemake -c 1 --latency-wait 86400 --max-jobs-per-second 1 --jobs 50 --keep-going
 
 # TODO:
-RAP download:
-convert to int8
-compare to current EVT classes (pull 1 year that matche EVT year -> for each EVT class, show distribution of % cover for each RAP type)
-
-/vsicurl/http://rangeland.ntsg.umt.edu/data/rap/rap-vegetation-cover/v3/ data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv 2020 data/ROI/california.shp data/baselayers/temp/RAP/ logs/get_rap_2020.log
+later -- consider cleanup of subprocess.run, to be more robust to other operating systems
 
 
+BASELAYERS MERGE:
+TOPO: **
 
-TESTING:
-Landfire:
-confirm that clipped copy of data has smaller dimensions than unclipped
-create shp of specific test values at different corners of CA (create geojson of points to extract from website, then convert to shpfile on QGIS?)
+CLIM: wait until after submit landfire download job
 
-MTBS:
-confirm # of unique IDs per year matches # of boundaries
-confirm all fires have burn severity tif
+VEG: Waiting to decide RAP or MODIS?
 
-LANDFIRE DOWNLOAD:
-Fix metadata that didn't get moved
-Fix .done files not made 
+HDIST: TESTING NOW
+. /u/local/Modules/default/init/modules.sh
+module load anaconda3
+conda activate RIO_GPD
+python workflow/get_baselayers/make_hdist.py \
+    "/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/US_DIST/" \
+    "data/baselayers/annual_dist_withagrdevmask.nc" \
+    "0" \
+    "1999" \
+    "2024" \
+    "data/baselayers/hdist_merged.done"
+
+
+
+ON PAUSE UNTIL WE TALK ABOUT MODIS: EVT <-> RAP RF MODEL:
+Sample points from old merged EVT, sample points from new RAP @ 2016, 2020, 2023 -> run basic RF model to predict (clump dwarf shurubland in with regular shurbland, drop all 5, 11, 12, 13)
+
 
 CONDA ENV:
 Automatic env creation/usage inside of snakefile
+
+
+TESTING: ** WRITE TEST CASES FOR SAMPLE POINTS NEXT
+for all: 
+create tiny ROI for tiny test cases that can be viewed on qgis easily too (projection comes in nicely), to make sure metadata show up nicely
+print gdalinfo and review attrs make sense --> updated get_gdalinfo in geo_utils
+
+landfire: ** TODO NEXT
+confirm that clipped copy of data has smaller dimensions than unclipped
+create shp of specific test values at different corners of CA (create geojson of points to extract from website, then convert to shpfile on QGIS?)
+confirm that dtype, nodatavals are correct and that crs exist
+
+mtbs: ** TODO NEXT
+confirm # of unique IDs per year matches # of boundaries
+confirm all fires have burn severity tif
+
+rap: ON PAUSE -- MAY USE MODIS
+create shp of specific test values at different corners of CA, same as landfire
+
+gridmet:
+add gridmet rule
+create merged gridmet layer
+
 
 # To run the main Snakefile
 (1) Update the configs:

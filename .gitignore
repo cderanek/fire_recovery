@@ -16,3 +16,4 @@ joblog*
 .snakemake/*
 logs/*
 results/*
+*.png

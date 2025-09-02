@@ -46,7 +46,7 @@ def clip_landfire(unzip_dir, download_dir, ROI):
 
     # Remove unclipped data
     print(f'Deleting {unzip_dir}', flush=True)
-    # subprocess.run(['rm -r', unzip_dir])
+    subprocess.run(['rm', '-r', unzip_dir])
 
     pass
 
@@ -107,7 +107,7 @@ def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
     export_to_tiff(
         rds_clipped,
         out_path=f_new,
-        dtype_out=dtype_orig,
+        dtype_out=dtype_orig.lower(),
         nodata=nodata_orig,
         compression='LZW')
 
@@ -123,10 +123,29 @@ def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
 def save_metadata(download_dir:str, metadata_dir:str):
     os.makedirs(metadata_dir, exist_ok=True)
     clip_dir = f'{download_dir}clipped/'
-    os.system(f'cp -r {download_dir}**/**/General_Metadata/*.xml {metadata_dir}')
-    os.system(f'cp -r {download_dir}**/**/CSV_Data/*.csv {clip_dir}')
-    os.system(f'cp -r {download_dir}**/**/Tif/*.tif.* {clip_dir}')
-    os.system(f'cp -r {download_dir}**/**/Tif/*.tfw {clip_dir}')
+    os.makedirs(metadata_dir, exist_ok=True)
+
+    def find_dir(base_dir, folder_name):
+        matches = glob.glob(f'{base_dir}**/{folder_name}/', recursive=True)
+        return matches[0] if matches else None
+
+    # Find metadata, csv, tif directories
+    metadata_source = find_dir(download_dir, 'General_Metadata')
+    csv_source = find_dir(download_dir, 'CSV_Data') 
+    tif_source = find_dir(download_dir, 'Tif')
+
+    if metadata_source:
+        os.system(f'cp {metadata_source}*.xml {metadata_dir}')
+    else: print(f'No .xml metadata found in {download_dir}')
+
+    if csv_source:
+        os.system(f'cp {metadata_source}*.csv {metadata_dir}')
+    else: print(f'No .csv metadata found in {download_dir}')
+
+    if tif_source:
+        os.system(f'cp {tif_source}*.tif.* {clip_dir}')
+        os.system(f'cp {tif_source}*.tfw {clip_dir}')
+    else: print(f'No tif data found in {download_dir}')
 
     pass
 
@@ -139,7 +158,8 @@ if __name__ == '__main__':
     download_dir = sys.argv[4]
     metadata_dir = sys.argv[5]
     ROI = sys.argv[6]
+    done_flag = sys.argv[7]
 
     unzip_dir = download_landfire(prod_name, prod_link, prod_checksum, download_dir)
-    # unzip_dir = 'None'
     clip_landfire(unzip_dir, download_dir, ROI)
+    subprocess.run(['touch', done_flag])

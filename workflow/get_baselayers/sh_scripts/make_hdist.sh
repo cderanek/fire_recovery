@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# INPUTS
+CONDA_ENV=$1
+ANNUAL_DIST_DIR=$2
+MERGED_OUT_PATH=$3
+NODATAVAL=$4
+START_YR=$5
+END_YR=$6
+DONE_FLAG=$7
+
+. /u/local/Modules/default/init/modules.sh
+module load anaconda3
+conda activate $CONDA_ENV
+
+python workflow/get_baselayers/make_hdist.py \
+    "$ANNUAL_DIST_DIR" \
+    "$MERGED_OUT_PATH" \
+    "$NODATAVAL" \
+    "$START_YR" \
+    "$END_YR" \
+    "$DONE_FLAG"
+
+chmod 555 $MERGED_OUT_PATH # make read only

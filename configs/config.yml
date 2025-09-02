@@ -22,7 +22,7 @@ LANDFIRE_PRODUCTS:
   Slope:
     link: 'https://landfire.gov/data-downloads/US_Topo_2020/LF2020_SlpD_220_CONUS.zip'
     checksum: '8b030a77cb457b25ca75215821cb7c9e'
-    size_gb: 
+    size_gb: -1
     dir_name: 'data/baselayers/temp/Slp/'
 
   # Disturbance
@@ -37,6 +37,7 @@ RAP_PRODUCTS:
   checksum_ref: 'data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv'
   dir_name: 'data/baselayers/temp/RAP/'
 
+
 BASELAYERS:
   topo: 
     fname: 'data/baselayers/asp_slope_anydist.nc'
@@ -46,6 +47,7 @@ BASELAYERS:
   annual_dist: 
     fname: 'data/baselayers/annual_dist_withagrdevmask.nc'
     dtype: ''
+    nodataval: 0 # meaning, we have no record of disturbance here
     var_names: []
     dims: []
   groupings: 

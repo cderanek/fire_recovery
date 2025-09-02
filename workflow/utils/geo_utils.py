@@ -192,8 +192,8 @@ def get_gdalinfo(f:str)->dict:
             output['dtype'] = bands[0]['type']
             output['nodata'] = bands[0]['noDataValue']
         else:
-            band_num = band['band']
             for band in bands:
+                band_num = band['band']
                 try:
                     try:
                         band_name = band['description']
@@ -204,7 +204,7 @@ def get_gdalinfo(f:str)->dict:
 
                 output[band_num] = {
                     'dtype': bands[0]['type'],
-                    'nodata': bands[0]['noDataValue']
+                    'nodata': bands[0]['noDataValue'],
                     'name': band_name
                 }
 
@@ -224,3 +224,7 @@ def format_roi(ROI: str):
     ROI = ROI[ROI['area']==ROI['area'].max()] # Just get the polygon for mainland CA, not the little islands
 
     return ROI
+
+def generate_sample_points():
+    # Copy from workflow/exploratory/evt_rap_RF.py
+    pass

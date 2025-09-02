@@ -19,6 +19,5 @@ python workflow/get_baselayers/download_clip_landfire.py \
     "$CHECKSUM" \
     "$DIR_NAME" \
     "$METADATA_DIR" \
-    "$ROI_FILE"
-
-touch "$DONE_FLAG"
+    "$ROI_FILE" \
+    "$DONE_FLAG"

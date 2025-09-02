@@ -18,4 +18,5 @@ python workflow/get_baselayers/download_rap.py \
     "$CHECKSUM_FILENAME_REF" \
     "$CURRENT_YEAR" \
     "$ROI_FILE" \
-    "$OUT_DIR"
+    "$OUT_DIR" \
+    "$DONE_FLAG"
