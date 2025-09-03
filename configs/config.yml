@@ -3,6 +3,8 @@ NOTIFY_EMAIL: 'caderanek@g.ucla.edu'
 ROI: 'data/ROI/california.shp'
 START_YEAR: 1990
 END_YEAR: 2020
+RECOVERY_MAPS_DIR: 'data/recovery_maps/'
+
 
 ### GET_BASELAYERS ####
 LANDFIRE_PRODUCTS: 
@@ -75,6 +77,9 @@ RAP_PRODUCTS:
   checksum_ref: 'data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv'
   dir_name: 'data/baselayers/temp/RAP/'
 
+WUMI_PRODUCTS:
+  data_dir: 'data/baselayers/temp/WUMI2024a/fire_maps'
+  subfires_csv_f: '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires.txt'
 
 BASELAYERS:
   agdev_mask: 

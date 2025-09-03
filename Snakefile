@@ -155,6 +155,7 @@ rule make_hdist:
     params:
         annual_dist_dir=config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name'],
         dtype=config['BASELAYERS']['annual_dist']['dtype'],
+        nodataval=config['BASELAYERS']['annual_dist']['nodataval'],
         xdim=config['BASELAYERS']['annual_dist']['dims']['xdim'],
         ydim=config['BASELAYERS']['annual_dist']['dims']['ydim'],
         timedim=config['BASELAYERS']['annual_dist']['dims']['timedim'],
@@ -243,3 +244,6 @@ rule make_agdevmask:
              {params.dtype} \
              {output.done_flag}
         """
+
+## TODO: Once all final baselayers are confirmed to be completed, delete the folder of temp baselayers
+# rule delete_temp_baselayers:

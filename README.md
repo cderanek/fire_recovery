@@ -14,7 +14,7 @@ snakemake --lint
 snakemake --dry-run
 snakemake -c 1
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
-snakemake -c 1 --latency-wait 86400 --max-jobs-per-second 1 --jobs 50 --keep-going --immediate-submit --notemp
+snakemake -c 1 --latency-wait 86400 --max-jobs-per-second 10 --jobs 50 --keep-going --immediate-submit --notemp
 
 # TODO:
 later -- consider cleanup of subprocess.run, to be more robust to other operating systems
