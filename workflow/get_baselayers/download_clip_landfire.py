@@ -1,4 +1,5 @@
 import subprocess, sys, os, glob, gc
+import zipfile
 import numpy as np
 import geopandas as gpd
 import xarray as xr
@@ -72,14 +73,19 @@ def unzip(prod_name:str, download_dir:str, f:str):
     print(f'About to unzip {prod_name} at {f}', flush=True)
     try:
         subprocess.run(['unzip', f, '-d', download_dir])
-        print(f.replace('.zip', '/*.zip'))
-        subprocess.run(['unzip', f.replace('.zip', '/*.zip'), '-d', f.replace('.zip', '/')])
+
+        # Get name of unzipped dir to unzip 1 level down
+        with zipfile.ZipFile(f, 'r') as zip_ref:
+            new_dir = zip_ref.namelist()[0].split('/')[0]
+        new_path = os.path.join(download_dir, new_dir)
+        subprocess.run(['unzip', f'{new_path}/*.zip', '-d', new_path])
+    
     except subprocess.CalledProcessError as e:
         print(f'Failed to unzip {prod_name}: {e}', flush=True)
         print(e.stderr, flush=True)
 
     print(f'Successfully unzipped file {f}', flush=True)
-    return f.replace('.zip', '/')
+    return new_path
 
 
 def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
@@ -129,24 +135,27 @@ def save_metadata(download_dir:str, metadata_dir:str):
 
     def find_dir(base_dir, folder_name):
         matches = glob.glob(f'{base_dir}**/{folder_name}/', recursive=True)
-        return matches[0] if matches else None
+        return matches if matches else None
 
     # Find metadata, csv, tif directories
-    metadata_source = find_dir(download_dir, 'General_Metadata')
-    csv_source = find_dir(download_dir, 'CSV_Data') 
-    tif_source = find_dir(download_dir, 'Tif')
+    metadata_source_l = find_dir(download_dir, 'General_Metadata')
+    csv_source_l = find_dir(download_dir, 'CSV_Data') 
+    tif_source_l = find_dir(download_dir, 'Tif')
 
-    if metadata_source:
-        os.system(f'cp {metadata_source}*.xml {metadata_dir}')
+    if metadata_source_l:
+        for metadata_source in metadata_source_l:
+            os.system(f'cp {metadata_source}*.xml {metadata_dir}')
     else: print(f'No .xml metadata found in {download_dir}')
 
-    if csv_source:
-        os.system(f'cp {csv_source}*.csv {metadata_dir}')
+    if csv_source_l:
+        for csv_source in csv_source_l:
+            os.system(f'cp {csv_source}*.csv {metadata_dir}')
     else: print(f'No .csv metadata found in {download_dir}')
 
-    if tif_source:
-        os.system(f'cp {tif_source}*.tif.* {clip_dir}')
-        os.system(f'cp {tif_source}*.tfw {clip_dir}')
+    if tif_source_l:
+        for tif_source in tif_source_l:
+            os.system(f'cp {tif_source}*.tif.* {clip_dir}')
+            os.system(f'cp {tif_source}*.tfw {clip_dir}')
     else: print(f'No tif data found in {download_dir}')
 
     pass

@@ -179,7 +179,7 @@ rule make_hdist:
              -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
              -M {params.email} \
              -m bea \
-             workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
+             workflow/get_baselayers/sh_scripts/make_hdist.sh \
              {params.conda_env} \
              {params.annual_dist_dir} \
              {output.merged_out_path} \
