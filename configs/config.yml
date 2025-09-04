@@ -77,9 +77,12 @@ RAP_PRODUCTS:
   checksum_ref: 'data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv'
   dir_name: 'data/baselayers/temp/RAP/'
 
+
 WUMI_PRODUCTS:
-  data_dir: 'data/baselayers/temp/WUMI2024a/fire_maps'
-  subfires_csv_f: '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires.txt'
+  data_dir: 'data/baselayers/temp/WUMI2024a/fire_maps/'
+  projection_raster: 'data/baselayers/temp/WUMI2024a/az3135011111020160516_20160502_20160603_dnbr6.tif'
+  subfires_csv_f: 'data/baselayers/temp/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires.txt'
+  mtbs_rasters_dir: 'data/baselayers/temp/mtbs_sev_rasters/'
 
 BASELAYERS:
   agdev_mask: 

@@ -10,8 +10,8 @@ XDIM=$6
 YDIM=$7
 TIMEDIM=$8
 START_YR=$9
-END_YR=$10
-DONE_FLAG=$11
+END_YR=${10}
+DONE_FLAG=${11}
 
 . /u/local/Modules/default/init/modules.sh
 module load anaconda3

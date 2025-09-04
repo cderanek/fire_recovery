@@ -13,6 +13,8 @@ YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 ### Download baselayers for full ROI ###
 # Trigger product downloads for all baselayers
 
+## TODO: Once all final baselayers are confirmed to be completed, set intermediated output files as temp() in the relevant rules
+## TODO: Figure out how to combine workflows -- main workflow should call build baselayers workflow, build recovery maps workflow, sampling workflow, and analysis/vis workflow
 
 rule get_baselayers:
     input:
@@ -21,10 +23,18 @@ rule get_baselayers:
         # RAP input, annual
         expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
         # Baselayers outputs
-        config['BASELAYERS']['annual_dist']['fname'],
+        "data/baselayers/make_hdist.done",
+        "data/baselayers/agdev_mask.done",
+        "data/baselayers/mtbs_bundles.done"
         # Eventually replace individual baselayers AND the origianl landfire/rap files with:
         # expand(config['BASELAYERS'][{prod}]['fname'], prod=BASELAYER_FILES),
         # still need to add test cases for small ROIs + add path to small ROIs in config
+
+    log:
+        "logs/get_all_baselayers.log"
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
 
     output:
         done_flag="data/baselayers/all_baselayers_merged.done"
@@ -37,9 +47,6 @@ rule get_baselayers:
 
 # Rule for landfire download
 rule get_landfire:
-    input:
-        ROI=config['ROI'] # Our ROI to clip to (assumed to be in CONUS)
-
     output: 
         ## TEMP output of downloading initial CONUS-wide files
         # LANDFIRE
@@ -54,6 +61,7 @@ rule get_landfire:
         "logs/get_landfire_{prod}.log"
 
     params:
+        ROI=config['ROI'], # Our ROI to clip to (assumed to be in CONUS)
         link=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['link'],
         checksum=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['checksum'],
         dir_name=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['dir_name'],
@@ -83,16 +91,13 @@ rule get_landfire:
              {params.checksum} \
              "{params.dir_name}" \
              {output.metadata_dir} \
-             {input.ROI} \
+             {params.ROI} \
              {output.done_flag}
         """
 
 
 # Rule for RAP download
 rule get_rap:
-    input:
-        ROI=config['ROI'] # Our ROI to clip to (assumed to be in CONUS)
-
     output: 
         ## TEMP output of downloading initial unmerged files
         # RAP
@@ -104,6 +109,7 @@ rule get_rap:
         "logs/get_rap_{year}.log"
 
     params:
+        ROI=config['ROI'], # Our ROI to clip to (assumed to be in CONUS)
         link=config['RAP_PRODUCTS']['veg_cover_link_prefix'],
         checksum=config['RAP_PRODUCTS']['checksum_ref'],
         dir_name=config['RAP_PRODUCTS']['dir_name'],
@@ -115,6 +121,8 @@ rule get_rap:
         mem_gb=60,
         runtime=12,
         cpus=1
+
+    group: "rap_download_group" # run all RAP downloads as a single qsub job, to avoid making a bunch of short jobs in the queue
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
@@ -132,7 +140,7 @@ rule get_rap:
              {params.link} \
              {params.checksum} \
              {params.year} \
-             {input.ROI} \
+             {params.ROI} \
              {params.dir_name} \
              {output.done_flag}
         """
@@ -245,5 +253,49 @@ rule make_agdevmask:
              {output.done_flag}
         """
 
-## TODO: Once all final baselayers are confirmed to be completed, delete the folder of temp baselayers
-# rule delete_temp_baselayers:
+
+rule make_mtbs_bundles:
+    output:
+        done_flag="data/baselayers/mtbs_bundles.done"
+
+    log: 
+        "logs/mtbs_bundles.log"
+
+    params:
+        wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
+        wumi_proj=config['WUMI_PRODUCTS']['projection_raster'],
+        wumi_data_dir=config['WUMI_PRODUCTS']['data_dir'],
+        mtbs_sevrasters_dir=config['WUMI_PRODUCTS']['mtbs_rasters_dir'],
+        start_year=config['START_YEAR'],
+        end_year=config['END_YEAR'],
+        output_dir=config['RECOVERY_MAPS_DIR']
+
+    resources:
+        mem_gb=50,
+        runtime=12,
+        cpus=6
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    shell:
+        """
+        qsub -cwd \
+             -o {log} \
+             -j y \
+             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G -pe shared {resources.cpus} \
+             -M {params.email} \
+             -m bea \
+             workflow/get_baselayers/sh_scripts/make_mtbs_bundles.sh \
+             {params.conda_env} \
+             {params.wumi_subfires_csv} \
+             {output.wumi_proj} \
+             {params.wumi_data_dir} \
+             {params.mtbs_sevrasters_dir} \
+             {params.start_year} \
+             {params.end_year} \
+             {params.output_dir} \
+             {output.done_flag} \
+             {resources.cpus}
+        """
+

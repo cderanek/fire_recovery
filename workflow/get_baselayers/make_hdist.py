@@ -34,7 +34,7 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, dtype_out='int8', 
         _, r = reproj_align_rasters('reproj_match', template_rxr, r)
 
         # Get the year column in the VAT
-        rat_yr_col = rat.columns.values[np.isin(rat.columns.values, ['YEAR', 'HDIST_YR', 'DIST_YEAR'])][0]
+        rat_yr_col = rat.columns.values[np.isin(rat.columns.values, ['YEAR', 'HDIST_YR', 'DIST_YEAR', 'CALENDAR_Y'])][0]
 
         for curr_yr in np.unique(rat[rat_yr_col].dropna()):
             try:
