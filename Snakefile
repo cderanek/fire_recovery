@@ -55,10 +55,7 @@ rule get_landfire:
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir=directory('data/baselayers/downloadlogs_metadata/{prod}')
 
-        # Small output clipped from permanent output (these will be used for testing)
-
-    log:
-        "logs/get_landfire_{prod}.log"
+    log: "logs/get_landfire_{prod}.log"
 
     params:
         ROI=config['ROI'], # Our ROI to clip to (assumed to be in CONUS)
@@ -67,24 +64,13 @@ rule get_landfire:
         dir_name=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['dir_name'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
-    
-    resources:
-        mem_gb=20,
-        runtime=12,
-        cpus=1
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
 
     shell:
         """
-        qsub -cwd \
-             -o {log} \
-             -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
-             -M {params.email} \
-             -m bea \
-             workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
+        workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
              {params.conda_env} \
              {wildcards.prod} \
              "{params.link}" \
@@ -105,9 +91,11 @@ rule get_rap:
 
         # Small output clipped from permanent output (these will be used for testing)
 
-    log:
-        "logs/get_rap_{year}.log"
+    log: "logs/rap/get_rap_{year}.log"
 
+    resources:
+        mem_gb=60
+    
     params:
         ROI=config['ROI'], # Our ROI to clip to (assumed to be in CONUS)
         link=config['RAP_PRODUCTS']['veg_cover_link_prefix'],
@@ -117,11 +105,6 @@ rule get_rap:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
     
-    resources:
-        mem_gb=60,
-        runtime=12,
-        cpus=1
-
     group: "rap_download_group" # run all RAP downloads as a single qsub job, to avoid making a bunch of short jobs in the queue
 
     conda: 
@@ -129,13 +112,7 @@ rule get_rap:
 
     shell:
         """
-        qsub -cwd \
-             -o {log} \
-             -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
-             -M {params.email} \
-             -m bea \
-             workflow/get_baselayers/sh_scripts/download_clip_rap.sh \
+        workflow/get_baselayers/sh_scripts/download_clip_rap.sh \
              {params.conda_env} \
              {params.link} \
              {params.checksum} \
@@ -157,9 +134,6 @@ rule make_hdist:
 
         # Small output clipped from permanent output (these will be used for testing)
 
-    log:
-        "logs/make_hdist.log"
-
     params:
         annual_dist_dir=config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name'],
         dtype=config['BASELAYERS']['annual_dist']['dtype'],
@@ -172,23 +146,17 @@ rule make_hdist:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
+    log: "logs/make_hdist.log"
+    
     resources:
-        mem_gb=100,
-        runtime=12,
-        cpus=1
+        mem_gb=100
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
 
     shell:
         """
-        qsub -cwd \
-             -o {log} \
-             -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
-             -M {params.email} \
-             -m bea \
-             workflow/get_baselayers/sh_scripts/make_hdist.sh \
+        workflow/get_baselayers/sh_scripts/make_hdist.sh \
              {params.conda_env} \
              {params.annual_dist_dir} \
              {output.merged_out_path} \
@@ -218,34 +186,23 @@ rule make_agdevmask:
         merged_out_path=config['BASELAYERS']['agdev_mask']['fname'],
         done_flag="data/baselayers/agdev_mask.done"
 
-        # Small output clipped from permanent output (these will be used for testing)
-
-    log:
-        "logs/agdev_mask.log"
-
     params:
         evt_dir=config['LANDFIRE_PRODUCTS']['EVT_2001']['dir_name'],
         dtype=config['BASELAYERS']['agdev_mask']['dtype'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
+    log: "logs/agdev_mask.log"
+
     resources:
-        mem_gb=100,
-        runtime=12,
-        cpus=1
+        mem_gb=100
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
 
     shell:
         """
-        qsub -cwd \
-             -o {log} \
-             -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
-             -M {params.email} \
-             -m bea \
-             workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
+        workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
              {params.conda_env} \
              {params.evt_dir} \
              {output.merged_out_path} \
@@ -258,9 +215,6 @@ rule make_mtbs_bundles:
     output:
         done_flag="data/baselayers/mtbs_bundles.done"
 
-    log: 
-        "logs/mtbs_bundles.log"
-
     params:
         wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
         wumi_proj=config['WUMI_PRODUCTS']['projection_raster'],
@@ -268,11 +222,14 @@ rule make_mtbs_bundles:
         mtbs_sevrasters_dir=config['WUMI_PRODUCTS']['mtbs_rasters_dir'],
         start_year=config['START_YEAR'],
         end_year=config['END_YEAR'],
-        output_dir=config['RECOVERY_MAPS_DIR']
+        output_dir=config['RECOVERY_MAPS_DIR'],
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    log: "logs/mtbs_bundles.log"
 
     resources:
         mem_gb=50,
-        runtime=12,
         cpus=6
 
     conda: 
@@ -280,16 +237,10 @@ rule make_mtbs_bundles:
 
     shell:
         """
-        qsub -cwd \
-             -o {log} \
-             -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G -pe shared {resources.cpus} \
-             -M {params.email} \
-             -m bea \
-             workflow/get_baselayers/sh_scripts/make_mtbs_bundles.sh \
+        workflow/get_baselayers/sh_scripts/make_mtbs_bundles.sh \
              {params.conda_env} \
              {params.wumi_subfires_csv} \
-             {output.wumi_proj} \
+             {params.wumi_proj} \
              {params.wumi_data_dir} \
              {params.mtbs_sevrasters_dir} \
              {params.start_year} \

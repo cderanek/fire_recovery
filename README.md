@@ -14,21 +14,26 @@ snakemake --lint
 snakemake --dry-run
 snakemake -c 1
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
+snakemake --profile profiles/age \
+          --groups rap_download_group=group0 \
+          --group-components group0=1
+
+
 snakemake -c 1 \
---cluster-config cluster.yaml \
 --cluster "qsub -cwd \
              -o {log} \
              -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G \
-             -M {cluster.email} \
-             -m bea \" \
+             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G -pe shared {resources.cpus} \
+             -M {params.email} \
+             -m bea" \
+--default-resources runtime=12 mem_gb=20 cpus=1 \
 --latency-wait 86400 \
 --max-jobs-per-second 10 \
 --jobs 50 \
 --keep-going \
 --rerun-incomplete \
 --groups rap_download_group=group0 \
---group-components group0=1 \
+--group-components group0=1
 
 ## POSSIBLY ADD
 --immediate-submit \
