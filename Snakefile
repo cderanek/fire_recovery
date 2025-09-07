@@ -19,15 +19,6 @@ YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
 rule get_baselayers:
     input:
-        # # LANDFIRE inputs
-        # expand("data/baselayers/landfire_{prod}_processed.done", prod=LANDFIRE_PRODUCTS),
-        # # RAP input, annual
-        # # expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
-        # # Baselayers outputs
-        # "data/baselayers/make_hdist.done",
-        # "data/baselayers/agdev_mask.done",
-        # 
-        # # Eventually replace individual baselayers AND the origianl landfire/rap files with:
         [config['BASELAYERS'][prod]['fname'] for prod in BASELAYER_FILES],
         "data/baselayers/mtbs_bundles.done"
 
@@ -74,9 +65,9 @@ rule get_landfire:
         workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
              {params.conda_env} \
              {wildcards.prod} \
-             "{params.link}" \
+             {params.link} \
              {params.checksum} \
-             "{params.dir_name}" \
+             {params.dir_name} \
              {output.metadata_dir} \
              {params.ROI} \
              {output.done_flag}  > {log.stdout} 2> {log.stderr}
@@ -144,6 +135,7 @@ rule make_agdevmask:
 
     params:
         nlcd_dir=config['NLCD']['dir_name'],
+        vegcodes_csv=config['NLCD']['vegcodes_csv'],
         dtype=config['BASELAYERS']['agdev_mask']['dtype'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
@@ -162,7 +154,8 @@ rule make_agdevmask:
         """
         workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
              {params.conda_env} \
-             {params.evt_dir} \
+             {params.nlcd_dir} \
+             {params.vegcodes_csv} \
              {output.merged_out_path} \
              {params.dtype} \
              {output.done_flag}  > {log.stdout} 2> {log.stderr}
@@ -252,7 +245,7 @@ rule download_nlcd:
     params:
         download_link=config['NLCD']['annual_nlcd_link'],
         out_dir=config['NLCD']['dir_name'],
-        metadata_dir=config['NLCD']['vegcodes_csv'],
+        vegcodes_csv=config['NLCD']['vegcodes_csv'],
         start_year=config['START_YEAR'],
         end_year=config['END_YEAR'],
         ROI=config['ROI'],
@@ -269,9 +262,10 @@ rule download_nlcd:
     shell:
         """
         workflow/get_baselayers/sh_scripts/download_clip_nlcd.sh \
+        {params.conda_env} \
         {params.download_link} \
         {params.out_dir} \
-        {params.metadata_dir} \
+        {params.vegcodes_csv} \
         {params.start_year} \
         {params.end_year} \
         {params.ROI} \
@@ -288,5 +282,29 @@ rule make_groupings:
         out_f=config['BASELAYERS']['groupings']['fname']
 
     params:
+        elev_band_m=config['ELEV_BANDS_METERS'],
+        nlcd_dir=config['NLCD']['dir_name'],
+        vegcodes_csv=config['NLCD']['vegcodes_csv'],
+        merged_topo=config['BASELAYERS']['topo']['fname'],
+        out_f=config['BASELAYERS']['groupings']['fname'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/make_groupings.log',
+        stderr='logs/make_groupings.err'
+
+    shell:
+        """
+        workflow/get_baselayers/sh_scripts/make_groupings.sh \
+        {params.conda_env} \
+        {params.elev_band_m} \
+        {params.nlcd_dir} \
+        {params.vegcodes_csv} \
+        {params.merged_topo} \
+        {params.out_f} \
+        {output.done_flag}
+        """

@@ -83,6 +83,7 @@ def create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out):
 
 
 if __name__ == "__main__":
+    print(f'Running make_agdev_mask.py with arguments {'\n'.join(sys.argv)}\n')
     nlcd_dir = sys.argv[1]
     vegcodes_csv = sys.argv[2]
     merged_out_path = sys.argv[3]

@@ -175,7 +175,7 @@ if __name__ == '__main__':
     start_year, end_year = int(sys.argv[5]), int(sys.argv[6]) # years range of fires to be considered for analysis
     output_dir = sys.argv[7]    # where to store the clipped sev rasters + copy of shapefiles
     done_flag = sys.argv[8]
-    n_processes = sys.argv[9]
+    n_processes = int(sys.argv[9])
 
     # FILTER -- LIST OF ALL MTBS SUBFIRES IN CA FOR DESIRED YEARS
     fireid_years_events, total_count = get_wumi_id_years(subfires_csv, start_year, end_year)

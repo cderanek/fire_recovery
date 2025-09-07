@@ -6,7 +6,7 @@ ELEV_DIR=$2
 ASP_DIR=$3
 SLOPE_DIR=$4
 OUT_F=$5
-N_PROCESSES=$6
+DONE_FLAG=$6
 
 
 . /u/local/Modules/default/init/modules.sh
