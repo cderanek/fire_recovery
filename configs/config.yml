@@ -4,6 +4,11 @@ ROI: 'data/ROI/california.shp'
 RECOVERY_MAPS_DIR: 'data/recovery_maps/'
 
 
+### TEST SETTINGS ####
+TESTING: False
+TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_conusalbers_testROI.shp'
+
+
 ### RECOVERY PARAMETERS ####
 START_YEAR: 1990
 END_YEAR: 2020

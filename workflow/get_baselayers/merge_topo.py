@@ -1,9 +1,10 @@
+import sys, subprocess
 import glob
 import xarray as xr
 import rioxarray as rxr
 import rasterio as rio
 import numpy as np
-import subprocess 
+
 
 def merge_topo(topo_f_list, out_f):
     # Open topo layers and get band names from file paths
