@@ -1,15 +1,17 @@
-import sys, subprocess
-import glob
+import glob, sys, os
 import xarray as xr
 import rioxarray as rxr
 import rasterio as rio
 import numpy as np
+import subprocess 
 
+sys.path.append("workflow/utils")
+from geo_utils import reproj_align_rasters
 
 def merge_topo(topo_f_list, out_f):
     # Open topo layers and get band names from file paths
     print(f'Opening all topo layers', flush=True)
-    topo_f_list = [glob.glob(f'{f}/*_clipped.tif')[0] for f in topo_f_list]
+    topo_f_list = [glob.glob(os.path.join(f,'clipped/*_clipped.tif'))[0] for f in topo_f_list if f!='']
     print(f'Layers are: {'\n'.join(topo_f_list)}', flush=True)
     band_names = [os.path.basename(f).split('_')[1] for f in topo_f_list]
     topo_rxr_layers = [rxr.open_rasterio(f) for f in topo_f_list]
@@ -39,7 +41,7 @@ def merge_topo(topo_f_list, out_f):
 
 if __name__ == '__main__':
     print(f'Running make_topo.py with arguments {'\n'.join(sys.argv)}\n')
-    topo_f_layers = sys.argv[1:-2]
+    topo_f_list = sys.argv[1:-2]
     out_f = sys.argv[-2]
     done_flag = sys.argv[-1]
 

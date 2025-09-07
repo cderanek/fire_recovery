@@ -1,10 +1,11 @@
+import os
 configfile: 'configs/config.yml'
 
 # Set paths based on testing mode
 TESTING = config['TESTING']
 if TESTING:
-    DATA_PREFIX = 'data/test_data/output'
     ROI_PATH = config['TEST_ROI']
+    DATA_PREFIX = os.path.join('data/test_data/output', os.path.splitext(os.path.basename(ROI_PATH))[0])
 else:
     ROI_PATH = config['ROI']
 

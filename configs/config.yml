@@ -10,7 +10,7 @@ TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_conusalbers_testROI.shp'
 
 
 ### RECOVERY PARAMETERS ####
-START_YEAR: 1990
+START_YEAR: 1990 # this is when Landfire Dist starts
 END_YEAR: 2020
 ELEV_BANDS_METERS: 500
 
