@@ -1,9 +1,13 @@
 ### GENERAL SETTINGS ####
 NOTIFY_EMAIL: 'caderanek@g.ucla.edu'
 ROI: 'data/ROI/california.shp'
+RECOVERY_MAPS_DIR: 'data/recovery_maps/'
+
+
+### RECOVERY PARAMETERS ####
 START_YEAR: 1990
 END_YEAR: 2020
-RECOVERY_MAPS_DIR: 'data/recovery_maps/'
+ELEV_BANDS_METERS: 500
 
 
 ### GET_BASELAYERS ####

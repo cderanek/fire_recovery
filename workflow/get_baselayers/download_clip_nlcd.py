@@ -81,6 +81,7 @@ def get_code_vegname_df(downloaded_f):
 
 
 if __name__ == '__main__':
+    print(f'Running download_clip_nlcd.py with arguments {'\n'.join(sys.argv)}\n')
     download_link=sys.argv[1]
     out_dir=sys.argv[2]
     metadata_dir=sys.argv[3]

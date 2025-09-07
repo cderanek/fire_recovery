@@ -28,7 +28,7 @@ rule get_baselayers:
         # "data/baselayers/agdev_mask.done",
         # 
         # # Eventually replace individual baselayers AND the origianl landfire/rap files with:
-        expand(config['BASELAYERS'][{prod}]['fname'], prod=BASELAYER_FILES),
+        [config['BASELAYERS'][prod]['fname'] for prod in BASELAYER_FILES],
         "data/baselayers/mtbs_bundles.done"
 
     conda: 
@@ -268,9 +268,9 @@ rule merge_topo:
         done_flag="data/baselayers/merge_topo.done"
 
     params:
-        elev_dir=config['LANDFIRE_PRODUCTS']['Elev']['dir_name']
-        asp_dir=config['LANDFIRE_PRODUCTS']['Asp']['dir_name']
-        slope_dir=config['LANDFIRE_PRODUCTS']['Slope']['dir_name']
+        elev_dir=config['LANDFIRE_PRODUCTS']['Elev']['dir_name'],
+        asp_dir=config['LANDFIRE_PRODUCTS']['Asp']['dir_name'],
+        slope_dir=config['LANDFIRE_PRODUCTS']['Slope']['dir_name'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -300,10 +300,10 @@ rule download_nlcd:
     params:
         download_link=config['NLCD']['annual_lc_link'],
         out_dir=config['NLCD']['dir_name'],
-        out_dir=config['NLCD']['metadata_dir_name'],
+        metadata_dir=config['NLCD']['metadata_dir_name'],
         start_year=config['START_YEAR'],
         end_year=config['END_YEAR'],
-        ROI=config['ROI']
+        ROI=config['ROI'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
