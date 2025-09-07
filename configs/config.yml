@@ -41,15 +41,9 @@ LANDFIRE_PRODUCTS:
 
 
 NLCD:
-  annual_lc_link: 'https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/data-bundles/Annual_NLCD_LndCov_YEAR_CU_C1V1.zip' # Script will replace YEAR with year desired
+  annual_nlcd_link: 'https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/data-bundles/Annual_NLCD_LndCov_YEAR_CU_C1V1.zip' # Script will replace YEAR with year desired
   dir_name: 'data/baselayers/temp/NLCD/'
   vegcodes_csv: 'data/baselayers/downloadlogs_metadata/NLCD/vegcodes_summary.csv'
-
-
-RAP_PRODUCTS:
-  veg_cover_link_prefix: '/vsicurl/http://rangeland.ntsg.umt.edu/data/rap/rap-vegetation-cover/v3/' # Script will add .tif info for years from 1989-2024
-  checksum_ref: 'data/baselayers/downloadlogs_metadata/RAP/rap_checksum_filenames.csv'
-  dir_name: 'data/baselayers/temp/RAP/'
 
 
 WUMI_PRODUCTS:

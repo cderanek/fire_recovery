@@ -19,11 +19,17 @@ YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
 rule get_baselayers:
     input:
+        # # LANDFIRE inputs
+        # expand("data/baselayers/landfire_{prod}_processed.done", prod=LANDFIRE_PRODUCTS),
+        # # RAP input, annual
+        # # expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
+        # # Baselayers outputs
+        # "data/baselayers/make_hdist.done",
+        # "data/baselayers/agdev_mask.done",
+        # 
+        # # Eventually replace individual baselayers AND the origianl landfire/rap files with:
         [config['BASELAYERS'][prod]['fname'] for prod in BASELAYER_FILES],
-        'data/baselayers/mtbs_bundles.done'
-
-    output:
-        done_flag='data/baselayers/all_baselayers_merged.done'
+        "data/baselayers/mtbs_bundles.done"
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
@@ -32,12 +38,20 @@ rule get_baselayers:
         stdout='logs/get_baselayers.log',
         stderr='logs/get_baselayers.err'
 
-    shell:
-        "touch {output.done_flag} > {log.stdout} 2> {log.stderr}"
-
-rule get_landfire:
     output:
+        done_flag="data/baselayers/all_baselayers_merged.done"
+
+    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
+
+
+# Rule for landfire download
+rule get_landfire:
+    output: 
+        ## TEMP output of downloading initial CONUS-wide files
+        # LANDFIRE
         done_flag="data/baselayers/landfire_{prod}_processed.done",
+
+        ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir=directory('data/baselayers/downloadlogs_metadata/{prod}')
 
     params:
@@ -48,34 +62,37 @@ rule get_landfire:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
-    conda:
+    conda: 
         'workflow/envs/get_baselayers_env.yml'
 
-    log:
+    log: 
         stdout='logs/get_landfire_{prod}.log',
         stderr='logs/get_landfire_{prod}.err'
 
-    shell: 
-    """
+    shell:
+        """
         workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
-            {params.conda_env} \
-            {wildcards.prod} \
-            {params.link} \
-            {params.checksum} \
-            {params.dir_name} \
-            {output.metadata_dir} \
-            {params.ROI} \
-            {output.done_flag}  > {log.stdout} 2> {log.stderr}
-    """
+             {params.conda_env} \
+             {wildcards.prod} \
+             "{params.link}" \
+             {params.checksum} \
+             "{params.dir_name}" \
+             {output.metadata_dir} \
+             {params.ROI} \
+             {output.done_flag}  > {log.stdout} 2> {log.stderr}
+        """
 
 
 rule make_hdist:
     input:
         "data/baselayers/landfire_Disturbance_processed.done", # need to have successfully downloaded all the disturbance data
 
-    output:
-        merged_out_path=config['BASELAYERS']['annual_dist']['fname'], # Output flag for merged agdev mask .nc
-        done_flag="data/baselayers/make_hdist.done",
+    output: 
+        # Output flag for merged agdev mask .nc
+        merged_out_path=config['BASELAYERS']['annual_dist']['fname'],
+        done_flag="data/baselayers/make_hdist.done"
+
+        # Small output clipped from permanent output (these will be used for testing)
 
     params:
         annual_dist_dir=config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name'],
@@ -92,7 +109,7 @@ rule make_hdist:
     resources:
         mem_gb=100
 
-    conda:
+    conda: 
         'workflow/envs/get_baselayers_env.yml'
 
     log:
@@ -100,19 +117,56 @@ rule make_hdist:
         stderr='logs/make_hdist.err'
 
     shell:
-    """
+        """
         workflow/get_baselayers/sh_scripts/make_hdist.sh \
-            {params.conda_env} \
-            {params.annual_dist_dir} \
-            {output.merged_out_path} \
-            {params.nodataval} \
-            {params.dtype} \
-            {params.xdim} \
-            {params.ydim} \
-            {params.timedim} \
-            {params.start_year} \
-            {params.end_year} \
-            {output.done_flag} > {log.stdout} 2> {log.stderr}"""
+             {params.conda_env} \
+             {params.annual_dist_dir} \
+             {output.merged_out_path} \
+             {params.nodataval} \
+             {params.dtype} \
+             {params.xdim} \
+             {params.ydim} \
+             {params.timedim} \
+             {params.start_year} \
+             {params.end_year} \
+             {output.done_flag} > {log.stdout} 2> {log.stderr}
+        """
+        
+        
+rule make_agdevmask:
+    input:
+        "data/baselayers/landfire_Disturbance_processed.done", # need to have successfully downloaded all the disturbance data
+
+    output: 
+        # Output flag for merged agdev mask .nc
+        merged_out_path=config['BASELAYERS']['agdev_mask']['fname'],
+        done_flag="data/baselayers/agdev_mask.done"
+
+    params:
+        nlcd_dir=config['NLCD']['dir_name'],
+        dtype=config['BASELAYERS']['agdev_mask']['dtype'],
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    resources:
+        mem_gb=100
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/agdev_mask.log',
+        stderr='logs/agdev_mask.err'
+
+    shell:
+        """
+        workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
+             {params.conda_env} \
+             {params.evt_dir} \
+             {output.merged_out_path} \
+             {params.dtype} \
+             {output.done_flag}  > {log.stdout} 2> {log.stderr}
+        """
 
 
 rule make_mtbs_bundles:
@@ -134,10 +188,10 @@ rule make_mtbs_bundles:
         mem_gb=50,
         cpus=1
 
-    conda:
+    conda: 
         'workflow/envs/get_baselayers_env.yml'
 
-    log:
+    log: 
         stdout='logs/mtbs_bundles.log',
         stderr='logs/mtbs_bundles.err'
 
@@ -172,10 +226,10 @@ rule merge_topo:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
-    conda:
+    conda: 
         'workflow/envs/get_baselayers_env.yml'
 
-    log:
+    log: 
         stdout='logs/merge_topo.log',
         stderr='logs/merge_topo.err'
 
@@ -196,70 +250,32 @@ rule download_nlcd:
         done_flag="data/baselayers/download_nlcd.done"
 
     params:
-        download_link=config['NLCD']['annual_lc_link'],
+        download_link=config['NLCD']['annual_nlcd_link'],
         out_dir=config['NLCD']['dir_name'],
-        vegcodes_csv=config['NLCD']['vegcodes_csv'],
+        metadata_dir=config['NLCD']['vegcodes_csv'],
         start_year=config['START_YEAR'],
         end_year=config['END_YEAR'],
         ROI=config['ROI'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
-    conda:
+    conda: 
         'workflow/envs/get_baselayers_env.yml'
 
-    log:
+    log: 
         stdout='logs/download_nlcd.log',
         stderr='logs/download_nlcd.err'
 
     shell:
         """
         workflow/get_baselayers/sh_scripts/download_clip_nlcd.sh \
-            {params.download_link} \
-            {params.out_dir} \
-            {params.vegcodes_csv} \
-            {params.start_year} \
-            {params.end_year} \
-            {params.ROI} \
-            {output.done_flag}
-        """
-        
-        
-rule make_agdevmask:
-    input:
-        "data/baselayers/download_nlcd.done"
-
-    output:
-        # Output flag for merged agdev mask .nc
-        merged_out_path=config['BASELAYERS']['agdev_mask']['fname'],
-        done_flag="data/baselayers/agdev_mask.done"
-
-    params:
-        nlcd_dir=config['NLCD']['dir_name'],
-        vegcodes_csv=config['NLCD']['vegcodes_csv'],
-        dtype=config['BASELAYERS']['agdev_mask']['dtype'],
-        conda_env='RIO_GPD',
-        email=config['NOTIFY_EMAIL']
-
-    resources:
-        mem_gb=100
-
-    conda:
-        'workflow/envs/get_baselayers_env.yml'
-
-    log:
-        stdout='logs/agdev_mask.log',
-        stderr='logs/agdev_mask.err'
-
-    shell:
-        """
-        workflow/get_baselayers/sh_scripts/make_agdev_mask.sh \
-             {params.conda_env} \
-             {params.nlcd_dir} \
-             {params.vegcodes_csv} \
-             {output.merged_out_path} \
-             {params.dtype} \
-             {output.done_flag}  > {log.stdout} 2> {log.stderr}
+        {params.download_link} \
+        {params.out_dir} \
+        {params.metadata_dir} \
+        {params.start_year} \
+        {params.end_year} \
+        {params.ROI} \
+        {output.done_flag}
         """
 
 
@@ -274,8 +290,3 @@ rule make_groupings:
     params:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
-
-    shell:
-        """
-        echo 'not implemented'
-        """
