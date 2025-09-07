@@ -1,15 +1,20 @@
-import sys, glob, gc
+import sys, glob, gc, os, subprocess
+import pandas as pd
+import numpy as np
 import xarray as xr
 import rioxarray as rxr
 
+sys.path.append("workflow/utils")
+from geo_utils import reproj_align_rasters
+
 def update_agdev_mask(r, rat, agdev_mask_combined, dtype_out):
     '''
-    Given an EVT raster r and a RAT file with corresponding EVT codes, returns an np 2d array
+    Given an EVT raster r and a RAT file with corresponding veg codes, returns an np 2d array
     representing an agricultural/development mask for the raster r.
     0: unmasked values, not known to be ag or dev
     1: masked values, ag or dev
     '''
-    ag_dev_values = rat['VALUE'][rat['SAF_SRM'].str.contains('Agricult|agricult|Develop|develop')].values
+    ag_dev_values = rat['NLCD_CODE'][rat['NLCD_NAMES'].str.lower().str.contains('agricult|develop|crop|pasture|cultiv')].values
     ag_dev_mask = np.where(np.isin(r.data.squeeze(), ag_dev_values), 1, 0).astype(dtype_out)
     
     # update existing mask
@@ -30,33 +35,41 @@ def update_agdev_mask(r, rat, agdev_mask_combined, dtype_out):
     
     return agdev_mask_combined
 
-def create_agdev_mask(evt_dir, merged_out_path, dtype_out):
+def create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out):
     # glob
-    all_evt_tifs = glob.glob(f'{evt_dir}clipped/*_clipped.tif')
-    template_tif = all_evt_tifs[0]
+    all_nlcd_tifs = glob.glob(os.path.join(nlcd_dir,'*_clipped.tif'))
+    template_tif = all_nlcd_tifs[0]
     template_r = rxr.open_rasterio(template_tif)
+    vegcodes_df = pd.read_csv(vegcodes_csv)
+    vegcodes_df['NLCD_CODE']=vegcodes_df['NLCD_CODE'].astype('int')
+    vegcodes_df['year']=vegcodes_df['year'].astype('int')
 
     agdev_mask_combined = None
-    for f in all_evt_tifs:
+    for f in all_nlcd_tifs:
         print(f'Adding information from {f} to agrdev mask.')
-        # get rat
-        rat = gpd.read_file(f.replace('_clipped.tif', '.tif.vat.dbf'))
+        # get vegcodes for current year
+        curr_yr = int(os.path.basename(f).split('_')[3])
+        vegcodes_yr = vegcodes_df[vegcodes_df['year']==curr_yr]
 
         # reproj align
         r = rxr.open_rasterio(f)
         _, r = reproj_align_rasters('reproj_match', template_r, r)
 
         # update mask
-        agdev_mask_combined = update_agdev_mask(r, rat, agdev_mask_combined)
+        agdev_mask_combined = update_agdev_mask(r, vegcodes_yr, agdev_mask_combined, dtype_out)
 
-        del r, rat
+        del r, vegcodes_yr
         gc.collect()
 
         print(f'Finished adding information from {f} to agrdev mask.')
 
+    print(agdev_mask_combined)
+    print('--------')
+    print(template_r.coords, template_r.dims, template_r.rio.crs)
+
     # save to output file
     agdev_mask_da = xr.DataArray(
-        agdev_mask_combined,
+        np.array([agdev_mask_combined.squeeze()]),
         coords=template_r.coords,
         dims=template_r.dims
     ).rio.write_crs(template_r.rio.crs)
@@ -70,11 +83,12 @@ def create_agdev_mask(evt_dir, merged_out_path, dtype_out):
 
 
 if __name__ == "__main__":
-    evt_dir = sys.argv[1]
-    merged_out_path = sys.argv[2]
-    dtype_out = sys.argv[3]
-    done_flag = sys.argv[4]
+    nlcd_dir = sys.argv[1]
+    vegcodes_csv = sys.argv[2]
+    merged_out_path = sys.argv[3]
+    dtype_out = sys.argv[4]
+    done_flag = sys.argv[5]
     
-    create_agdev_mask(evt_dir, merged_out_path, dtype_out)
+    create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out)
     
     subprocess.run(['touch', done_flag])

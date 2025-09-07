@@ -54,13 +54,12 @@ def unzip_clip(f, out_dir, ROI):
     ROI = format_roi(ROI)
     bbox = calculate_bbox(ROI, crs)
     
-    out_f = f.replace('.zip', '_clipped.tif')
-    clip_tif(out_f, tif, *bbox)
+    clip_tif(out_dir, tif, *bbox)
 
     # Remove unclipped data
-    print(f'Deleting zip file {f} and unclipped tif {f.replace('.zip', '.tif')}', flush=True)
+    print(f'Deleting zip file {f} and unclipped tif {tif}', flush=True)
     subprocess.run(['rm', '-r', f])
-    subprocess.run(['rm', '-r',  f.replace('.zip', '.tif')])
+    subprocess.run(['rm', '-r', tif])
     
 def get_code_vegname_df(downloaded_f):
     rat = downloaded_f.replace('.zip', '.tif.aux.xml')
@@ -84,7 +83,7 @@ if __name__ == '__main__':
     print(f'Running download_clip_nlcd.py with arguments {'\n'.join(sys.argv)}\n')
     download_link=sys.argv[1]
     out_dir=sys.argv[2]
-    metadata_dir=sys.argv[3]
+    vegcodes_csv=sys.argv[3]
     start_year=int(sys.argv[4])
     end_year=int(sys.argv[5])
     ROI=sys.argv[6]
@@ -96,7 +95,8 @@ if __name__ == '__main__':
         df['year'] = yr
         df_list.append(df)
 
-    pd.concat(df_list).to_csv(os.path.join(metadata_dir, 'vegcode_name.csv'))
+    os.makedirs(os.path.dirname(vegcodes_csv), exist_ok=True)
+    pd.concat(df_list).to_csv(vegcodes_csv)
     subprocess.run(['touch', done_flag])
 
 
