@@ -9,6 +9,7 @@ import subprocess
 import re
 import os
 import json
+import gc
 from typing import Union, Tuple
 
 NumericType = Union[int, float]
@@ -144,6 +145,7 @@ def export_to_tiff(
         complex64: Complex number with two 32-bit floats
         complex128: Complex number with two 64-bit floats
     '''
+    if dtype_out=='byte': dtype_out='uint8'
     if isinstance(rxr_obj, xr.Dataset):
         for var in rxr_obj.rio.vars:
             rxr_obj[var].rio.set_nodata(nodata, inplace=True)
@@ -228,3 +230,47 @@ def format_roi(ROI: str):
 def generate_sample_points():
     # Copy from workflow/exploratory/evt_rap_RF.py
     pass
+
+
+def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
+    f_new = clip_dir + f.split('/')[-1].replace('.tif', '_clipped.tif')
+    if not os.path.exists(f_new):
+        print(f'Currently clipping {f}')
+        gdalinfo = get_gdalinfo(f)
+        dtype_orig, nodata_orig = gdalinfo['dtype'], gdalinfo['nodata']
+        print(dtype_orig, nodata_orig)
+
+        # Open the file to clip
+        dataset = xr.open_dataset(f)
+        
+        # Get riodataset for all vars and write crs
+        crs_info = dataset.variables['spatial_ref'].attrs
+        orig_crs = pyproj.CRS.from_cf(crs_info)
+        rds = dataset[dataset.rio.vars].squeeze()
+        rds.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+        rds.rio.write_crs(orig_crs, inplace=True)
+
+        # Clip to bbox
+        rds_clipped = rds.rio.clip_box(minx=minx, miny=miny, maxx=maxx, maxy=maxy, crs=orig_crs)
+        print(rds)
+        print(rds_clipped)
+
+        # Memory management
+        del dataset, rds
+        gc.collect()
+
+        # Save output
+        export_to_tiff(
+            rds_clipped,
+            out_path=f_new,
+            dtype_out=dtype_orig.lower(),
+            nodata=nodata_orig,
+            compression='LZW')
+
+        # Memory management
+        del rds_clipped
+        gc.collect()
+    
+    else: print(f'Skipping {f}: Already in {clip_dir}')
+
+    return True

@@ -16,7 +16,7 @@ N_PROCESSES=${10}
 module load anaconda3
 conda activate $CONDA_ENV
 
-python workflow/get_baselayers/make_hdist.py \
+python workflow/get_baselayers/make_mtbs_bundles.py \
     "$SUBFIRES_CSV" \
     "$WUMI_PROJ" \
     "$WUMI_DIR" \

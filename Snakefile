@@ -1,6 +1,7 @@
 configfile: "configs/config.yml"
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
 BASELAYER_FILES = list(config['BASELAYERS'].keys())
+TOPO_LAYERS = ['Asp', 'Elev', 'Slope']
 start_year, end_year = config['START_YEAR'], config['END_YEAR']
 YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
@@ -18,31 +19,29 @@ YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
 rule get_baselayers:
     input:
-        # LANDFIRE inputs
-        expand("data/baselayers/landfire_{prod}_processed.done", prod=LANDFIRE_PRODUCTS),
-        # RAP input, annual
-        expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
-        # Baselayers outputs
-        "data/baselayers/make_hdist.done",
-        "data/baselayers/agdev_mask.done",
+        # # LANDFIRE inputs
+        # expand("data/baselayers/landfire_{prod}_processed.done", prod=LANDFIRE_PRODUCTS),
+        # # RAP input, annual
+        # # expand("data/baselayers/rap_{year}_processed.done", year=YEARS_TO_PROCESS),
+        # # Baselayers outputs
+        # "data/baselayers/make_hdist.done",
+        # "data/baselayers/agdev_mask.done",
+        # 
+        # # Eventually replace individual baselayers AND the origianl landfire/rap files with:
+        expand(config['BASELAYERS'][{prod}]['fname'], prod=BASELAYER_FILES),
         "data/baselayers/mtbs_bundles.done"
-        # Eventually replace individual baselayers AND the origianl landfire/rap files with:
-        # expand(config['BASELAYERS'][{prod}]['fname'], prod=BASELAYER_FILES),
-        # still need to add test cases for small ROIs + add path to small ROIs in config
-
-    log:
-        "logs/get_all_baselayers.log"
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
 
+    log: 
+        stdout='logs/get_baselayers.log',
+        stderr='logs/get_baselayers.err'
+
     output:
         done_flag="data/baselayers/all_baselayers_merged.done"
 
-    shell:
-        """
-        touch {output.done_flag}
-        """
+    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
 
 # Rule for landfire download
@@ -55,8 +54,6 @@ rule get_landfire:
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir=directory('data/baselayers/downloadlogs_metadata/{prod}')
 
-    log: "logs/get_landfire_{prod}.log"
-
     params:
         ROI=config['ROI'], # Our ROI to clip to (assumed to be in CONUS)
         link=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['link'],
@@ -68,6 +65,10 @@ rule get_landfire:
     conda: 
         'workflow/envs/get_baselayers_env.yml'
 
+    log: 
+        stdout='logs/get_landfire_{prod}.log',
+        stderr='logs/get_landfire_{prod}.err'
+
     shell:
         """
         workflow/get_baselayers/sh_scripts/download_clip_landfire.sh \
@@ -78,11 +79,10 @@ rule get_landfire:
              "{params.dir_name}" \
              {output.metadata_dir} \
              {params.ROI} \
-             {output.done_flag}
+             {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
 
 
-# Rule for RAP download
 rule get_rap:
     output: 
         ## TEMP output of downloading initial unmerged files
@@ -90,8 +90,6 @@ rule get_rap:
         done_flag="data/baselayers/rap_{year}_processed.done"
 
         # Small output clipped from permanent output (these will be used for testing)
-
-    log: "logs/rap/get_rap_{year}.log"
 
     resources:
         mem_gb=60
@@ -105,10 +103,14 @@ rule get_rap:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
     
-    group: "rap_download_group" # run all RAP downloads as a single qsub job, to avoid making a bunch of short jobs in the queue
+    #group: "rap_download_group" # run all RAP downloads as a single qsub job, to avoid making a bunch of short jobs in the queue
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/rap/get_rap_{year}.log',
+        stderr='logs/rap/get_rap_{year}.err'
 
     shell:
         """
@@ -119,7 +121,7 @@ rule get_rap:
              {params.year} \
              {params.ROI} \
              {params.dir_name} \
-             {output.done_flag}
+             {output.done_flag} > {log.stdout} 2> {log.stderr}
         """
 
 
@@ -145,14 +147,16 @@ rule make_hdist:
         end_year=config['LANDFIRE_PRODUCTS']['Disturbance']['end_year'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
-
-    log: "logs/make_hdist.log"
     
     resources:
         mem_gb=100
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
+
+    log:
+        stdout='logs/make_hdist.log',
+        stderr='logs/make_hdist.err'
 
     shell:
         """
@@ -167,7 +171,7 @@ rule make_hdist:
              {params.timedim} \
              {params.start_year} \
              {params.end_year} \
-             {output.done_flag}
+             {output.done_flag} > {log.stdout} 2> {log.stderr}
         """
         
         
@@ -192,13 +196,15 @@ rule make_agdevmask:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
-    log: "logs/agdev_mask.log"
-
     resources:
         mem_gb=100
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/agdev_mask.log',
+        stderr='logs/agdev_mask.err'
 
     shell:
         """
@@ -207,7 +213,7 @@ rule make_agdevmask:
              {params.evt_dir} \
              {output.merged_out_path} \
              {params.dtype} \
-             {output.done_flag}
+             {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
 
 
@@ -226,14 +232,16 @@ rule make_mtbs_bundles:
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
-    log: "logs/mtbs_bundles.log"
-
     resources:
         mem_gb=50,
-        cpus=6
+        cpus=1
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/mtbs_bundles.log',
+        stderr='logs/mtbs_bundles.err'
 
     shell:
         """
@@ -247,6 +255,87 @@ rule make_mtbs_bundles:
              {params.end_year} \
              {params.output_dir} \
              {output.done_flag} \
-             {resources.cpus}
+             {resources.cpus}  > {log.stdout} 2> {log.stderr}
         """
+
+
+rule merge_topo:
+    input:
+        expand("data/baselayers/landfire_{prod}_processed.done", prod=TOPO_LAYERS)
+
+    output:
+        out_f=config['BASELAYERS']['topo']['fname'],
+        done_flag="data/baselayers/merge_topo.done"
+
+    params:
+        elev_dir=config['LANDFIRE_PRODUCTS']['Elev']['dir_name']
+        asp_dir=config['LANDFIRE_PRODUCTS']['Asp']['dir_name']
+        slope_dir=config['LANDFIRE_PRODUCTS']['Slope']['dir_name']
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/merge_topo.log',
+        stderr='logs/merge_topo.err'
+
+    shell:
+        """
+        workflow/get_baselayers/sh_scripts/merge_topo.sh \
+        {params.conda_env} \
+        {params.elev_dir} \
+        {params.asp_dir} \
+        {params.slope_dir} \
+        {output.out_f} \
+        {output.done_flag}
+        """
+        
+
+rule download_nlcd:
+    output:
+        done_flag="data/baselayers/download_nlcd.done"
+
+    params:
+        download_link=config['NLCD']['annual_lc_link'],
+        out_dir=config['NLCD']['dir_name'],
+        out_dir=config['NLCD']['metadata_dir_name'],
+        start_year=config['START_YEAR'],
+        end_year=config['END_YEAR'],
+        ROI=config['ROI']
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
+
+    conda: 
+        'workflow/envs/get_baselayers_env.yml'
+
+    log: 
+        stdout='logs/download_nlcd.log',
+        stderr='logs/download_nlcd.err'
+
+    shell:
+        """
+        workflow/get_baselayers/sh_scripts/download_clip_nlcd.sh \
+        {params.download_link} \
+        {params.out_dir} \
+        {params.metadata_dir} \
+        {params.start_year} \
+        {params.end_year} \
+        {params.ROI} \
+        {output.done_flag}
+        """
+
+
+rule make_groupings:
+    input:
+        "data/baselayers/download_nlcd.done",
+        "data/baselayers/merge_topo.done"
+
+    output:
+        out_f=config['BASELAYERS']['groupings']['fname']
+
+    params:
+        conda_env='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
 

@@ -33,7 +33,7 @@ LANDFIRE_PRODUCTS:
     size_gb: 1.6
     dir_name: 'data/baselayers/temp/US_DIST/'
     start_year: 1999
-    end_year: 2024
+    end_year: 2025
 
   EVT_2001:
     link: 'https://landfire.gov/data-downloads/US_105/US_105_EVT.zip'
@@ -70,7 +70,11 @@ LANDFIRE_PRODUCTS:
     checksum: '5e6f68a1c88c269b2edc1780688e04d5'
     size_gb: 1.27
     dir_name: 'data/baselayers/temp/EVT/'
-    
+
+NLCD:
+  annual_lc_link: 'https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/data-bundles/Annual_NLCD_LndCov_YEAR_CU_C1V1.zip' # Script will replace YEAR with year desired
+  dir_name: 'data/baselayers/temp/NLCD/'
+  metadata_dir_name: 'data/baselayers/downloadlogs_metadata/NLCD/'
 
 RAP_PRODUCTS:
   veg_cover_link_prefix: '/vsicurl/http://rangeland.ntsg.umt.edu/data/rap/rap-vegetation-cover/v3/' # Script will add .tif info for years from 1989-2024
@@ -91,12 +95,12 @@ BASELAYERS:
     var_names: []
     dims: []
   topo: 
-    fname: 'data/baselayers/asp_slope_anydist.nc'
+    fname: 'data/baselayers/topo.nc'
     dtype: ''
     var_names: []
     dims: []
   annual_dist: 
-    fname: 'data/baselayers/annual_dist_withagrdevmask.nc'
+    fname: 'data/baselayers/annual_dist.nc'
     dtype: 'int8'
     nodataval: 0 # meaning, we have no record of disturbance here
     var_names: []
@@ -105,14 +109,7 @@ BASELAYERS:
       ydim: 'y'
       timedim: 'time'
   groupings: 
-    fname: 'data/baselayers/annual_veg_grouping_withagrdevmask.nc'
+    fname: 'data/baselayers/annual_veg_grouping.nc'
     dtype: ''
     var_names: []
     dims: []
-  mtbs_sev:
-    fname: 'data/baselayers/annual_mtbs_sev.nc'
-    dtype: ''
-    var_names: []
-    dims: []
-  mtbs_poly:
-    fname: 'data/baselayers/all_mtbs_poly.shp'

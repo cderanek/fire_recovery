@@ -47,9 +47,9 @@ evt_raster = '/u/project/eordway/shared/surp_cd/timeseries_data/data/CA_wide_rea
 rap_types = ['annual_forb_grass','perennial_forb_grass', 'shrub', 'tree']
 rap_rasters_pattern = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/temp/RAP/vegetation-cover-v3-2020_*.tif'
 os.makedirs('/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/', exist_ok=True)
-summary_csv_out = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/summary_rap_evt_counts_jointdistr.csv'
+summary_csv_out = '/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/summary_rap_evt_counts.csv'#'/u/project/eordway/shared/surp_cd/fire_recovery/data/baselayers/downloadlogs_metadata/RAP/summary_rap_evt_counts_jointdistr.csv'
 fig_out = '/u/project/eordway/shared/surp_cd/fire_recovery/results/rap_exploratory_analysis/'
-JOINT_DISTR = True
+JOINT_DISTR = False
 
 evt_groups_dict = {
     1.0: 'Closed tree canopy',
@@ -346,6 +346,10 @@ def plot_joint_density(df, x_col, y_col, out_f):
 
 if not JOINT_DISTR:
     summary_df = pd.read_csv(summary_csv_out)
+    print(summary_df)
+    summary_df['EVT'] = summary_df['EVT'].map(evt_groups_dict)
+    summary_df = summary_df.dropna()
+    print(summary_df)
     for evt in np.unique(summary_df['EVT']):
         summary_df_subset = summary_df[summary_df['EVT'] == evt]
         f = f'{fig_out}{evt}.png'

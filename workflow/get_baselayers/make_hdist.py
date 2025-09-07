@@ -1,4 +1,4 @@
-import glob
+import glob, subprocess
 import xarray as xr
 import rioxarray as rxr
 import numpy as np
@@ -81,7 +81,7 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, dtype_out='int8', 
     print(f'Successfully saved annual_dist_da\n{annual_dist_da}', flush=True)
 
     # Save summary of data structure
-    with open({out_f.replace('.nc', '_summary.txt')}, 'w') as f:
+    with open(out_f.replace('.nc', '_summary.txt'), 'w') as f:
         print(annual_dist_da, file=f)
         
     del annual_dist_da

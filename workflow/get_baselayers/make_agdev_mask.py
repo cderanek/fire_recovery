@@ -65,7 +65,7 @@ def create_agdev_mask(evt_dir, merged_out_path, dtype_out):
     agdev_mask_da.rio.to_raster(merged_out_path, dtype=dtype_out)
     
     # save printout to summary txt file
-    with open({merged_out_path.replace('.tif', '_summary.txt')}, 'w') as f:
+    with open(merged_out_path.replace('.tif', '_summary.txt'), 'w') as f:
         print(agdev_mask_da, file=f)
 
 

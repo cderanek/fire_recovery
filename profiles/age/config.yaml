@@ -1,17 +1,18 @@
 executor: cluster-generic
 cluster-generic-submit-cmd: "qsub -cwd \
-             -o logs/{rule}_{wildcards}.log \
+             -o logs/cluster/{rule}_{wildcards}.cluster.out \
+             -e logs/cluster/{rule}_{wildcards}.cluster.err \
              -j y \
              -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G -pe shared {resources.cpus} \
              -M {params.email} \
              -m bea"
 default-resources:
-  - runtime=12
+  - runtime=6
   - mem_gb=20
   - cpus=1
 jobs: 50
-latency-wait: 86400
+latency-wait: 30 #86400
 max-jobs-per-second: 10
 keep-going: true
 rerun-incomplete: true
-cluster-generic-cancel-cmd: "qdel"  # Add this to fix the warning
+cluster-generic-cancel-cmd: "qdel"

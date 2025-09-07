@@ -6,7 +6,7 @@ import xarray as xr
 import pyproj
 
 sys.path.append("workflow/utils")
-from geo_utils import export_to_tiff, get_crs, get_gdalinfo, calculate_bbox, format_roi
+from geo_utils import get_crs, calculate_bbox, format_roi, clip_tif
 from file_utils import confirm_checksum
 
 def download_landfire(prod_name, prod_link, prod_checksum, download_dir):
@@ -27,7 +27,13 @@ def download_landfire(prod_name, prod_link, prod_checksum, download_dir):
 
 
 def clip_landfire(unzip_dir, download_dir, ROI):
-    all_tifs = glob.glob(f'{download_dir}**/**/*.tif') + glob.glob(f'{download_dir}**/**/**/*.tif')
+    print(f'Unzip dir: {unzip_dir}\nDownload dir: {download_dir}')
+    unzip_tif_dirs = [os.path.join(unzip_dir, 'Tif'), os.path.join(download_dir, '**', '**', 'Tif')]
+    print(unzip_tif_dirs)
+    all_tifs = []
+    for unzip_tif_dir in unzip_tif_dirs:
+        all_tifs += glob.glob(f'{unzip_tif_dir}/*.tif')
+    print(all_tifs)
     all_crs = [get_crs(tif) for tif in all_tifs]
     crs_uniq = list(set(all_crs))
 
@@ -88,46 +94,6 @@ def unzip(prod_name:str, download_dir:str, f:str):
     return new_path
 
 
-def clip_tif(clip_dir, f, minx, miny, maxx, maxy):
-    print(f'Currently clipping {f}')
-    gdalinfo = get_gdalinfo(f)
-    dtype_orig, nodata_orig = gdalinfo['dtype'], gdalinfo['nodata']
-
-    # Open the file to clip
-    dataset = xr.open_dataset(f)
-    
-    # Get riodataset for all vars and write crs
-    crs_info = dataset.variables['spatial_ref'].attrs
-    orig_crs = pyproj.CRS.from_cf(crs_info)
-    rds = dataset[dataset.rio.vars].squeeze()
-    rds.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
-    rds.rio.write_crs(orig_crs, inplace=True)
-
-    # Clip to bbox
-    rds_clipped = rds.rio.clip_box(minx=minx, miny=miny, maxx=maxx, maxy=maxy, crs=orig_crs)
-
-    # Memory management
-    del dataset, rds
-    gc.collect()
-
-    # Save output
-    f_new = clip_dir + f.split('/')[-1].replace('.tif', '_clipped.tif')
-    export_to_tiff(
-        rds_clipped,
-        out_path=f_new,
-        dtype_out=dtype_orig.lower(),
-        nodata=nodata_orig,
-        compression='LZW')
-
-    print(f'Saved clipped file to {f_new}.')
-
-    # Memory management
-    del rds_clipped
-    gc.collect()
-
-    return True
-
-
 def save_metadata(download_dir:str, metadata_dir:str):
     os.makedirs(metadata_dir, exist_ok=True)
     clip_dir = f'{download_dir}clipped/'
@@ -144,16 +110,19 @@ def save_metadata(download_dir:str, metadata_dir:str):
 
     if metadata_source_l:
         for metadata_source in metadata_source_l:
+            print(f'Metadata source: {metadata_source}')
             os.system(f'cp {metadata_source}*.xml {metadata_dir}')
     else: print(f'No .xml metadata found in {download_dir}')
 
     if csv_source_l:
         for csv_source in csv_source_l:
+            print(f'csv source: {csv_source}')
             os.system(f'cp {csv_source}*.csv {metadata_dir}')
     else: print(f'No .csv metadata found in {download_dir}')
 
     if tif_source_l:
         for tif_source in tif_source_l:
+            print(f'tif source: {tif_source}')
             os.system(f'cp {tif_source}*.tif.* {clip_dir}')
             os.system(f'cp {tif_source}*.tfw {clip_dir}')
     else: print(f'No tif data found in {download_dir}')

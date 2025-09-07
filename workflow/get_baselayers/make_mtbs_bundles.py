@@ -1,9 +1,11 @@
-import pandas as pandas
+import pandas as pd
 import geopandas as gpd
 import subprocess, os, glob, shutil, sys
 import rioxarray as rxr
+import xarray as xr
 from rasterio.features import rasterize
 from multiprocessing import Pool, cpu_count
+import pyproj
 
 sys.path.append("workflow/utils")
 from geo_utils import clip_raster_to_poly, export_to_tiff
@@ -47,7 +49,7 @@ def get_wumi_id_years(
 
 
 def confirm_burned(
-    fire_sev_tif:rxr.DataArray, 
+    fire_sev_tif:xr.DataArray, 
     burn_poly: gpd.GeoDataFrame
     ) -> bool:
     # returns True if >90% of pixels in the burn boundary are true MTBS burn values (1<=val<=6) AND all pixels out of the burn boundary are nan
