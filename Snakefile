@@ -249,7 +249,7 @@ rule merge_topo:
         {params.asp_dir} \
         {params.slope_dir} \
         {output.out_f} \
-        {output.done_flag}
+        {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
         
 
@@ -284,7 +284,7 @@ rule download_nlcd:
         {params.start_year} \
         {params.end_year} \
         {params.ROI} \
-        {output.done_flag}
+        {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
 
 
@@ -321,5 +321,5 @@ rule make_groupings:
         {params.vegcodes_csv} \
         {params.merged_topo} \
         {params.out_f} \
-        {output.done_flag}
+        {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
