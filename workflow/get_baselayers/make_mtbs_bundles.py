@@ -1,6 +1,7 @@
 import pandas as pd
+import numpy as np
 import geopandas as gpd
-import subprocess, os, glob, shutil, sys
+import subprocess, os, glob, shutil, sys, gc
 import rioxarray as rxr
 import xarray as xr
 from rasterio.features import rasterize
@@ -98,24 +99,23 @@ def make_fire_spatialbundle(args):
 
         # output will be saved to {output_dir}/{wumi_fireid}/spatialinfo/
         fire_output_dir = f'{output_dir}/{fireid}/spatialinfo/'
+        os.makedirs(fire_output_dir, exist_ok=True)
         
         # copy WUMI MTBS polygon to new dir 
         # save with CRS info from provided projection
         f = glob.glob(os.path.join(wumi_dir, '*_mtbs*.shp'))
         assert len(f) == 1, f'Found {len(f)} shapefiles in {os.path.join(wumi_dir, '*_mtbs*.shp')}, when there should be exactly 1. \nExiting.'
         f = f[0]
-        wumi_mtbs_shp_f = os.path.join(fire_output_dir, f'{fireid}_wumi_mtbs_poly.shp')
-        print('ABOUT TO OUTPUT TO:')
-        print(wumi_mtbs_shp_f)
-        print(gpd.read_file(f))
+        wumi_mtbs_shp_f = os.path.join(fire_output_dir, f'{fireid}_wumi_mtbs_poly.shp').replace('//', '/')
+        gdf = gpd.read_file(f)
+        gdf.columns = [s.replace('object','').replace('_','') for s in gdf.columns] # shorten column names
+        gdf = gdf.loc[:, ~gdf.columns.duplicated()]
         (
-            gpd.read_file(f)
+            gdf
             .set_crs(wumi_projection)
             .to_file(wumi_mtbs_shp_f)
         )
-        print('CREATED:')
-        print(gpd.read_file(wumi_mtbs_shp_f))
-        
+
         assert len(gpd.read_file(f))==1, f'{f} is a multipolygon. len({f})!=1. \nExiting.'
 
         # extract sevraster for this polygon and save to {output_dir}/{wumi_fireid}/spatialinfo/
@@ -150,17 +150,11 @@ def make_fire_bundles_parallel(
         output_dir: str,
         n_processes: int
     ) -> None:
-    print('In fire bundles parallel')
-    print('fireid_years_events')
-    print(fireid_years_events)
-
     # Prepare args for each fire
     args_list = [
         (fireid, year, wumi_data_dir, mtbs_sevraster_dir, wumi_projection, output_dir)
         for fireid, year in fireid_years_events
     ]
-    print('args_list')
-    print(args_list)
 
      # Process fires in parallel
     with Pool(processes=n_processes) as pool:
@@ -195,6 +189,7 @@ if __name__ == '__main__':
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
     wumi_projection = rxr.open_rasterio(wumi_projection_raster).rio.crs
 
+    os.makedirs(output_dir, exist_ok=True)
     make_fire_bundles_parallel(
         fireid_years_events, 
         wumi_data_dir, 

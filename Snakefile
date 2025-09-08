@@ -39,7 +39,7 @@ YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 rule get_baselayers:
     input:
         [get_path(config['BASELAYERS'][prod]['fname']) for prod in BASELAYER_FILES],
-        get_path("data/baselayers/mtbs_bundles.done")
+        get_path("data/baselayers/done/mtbs_bundles.done")
 
     params:
         email=config['NOTIFY_EMAIL']
@@ -52,7 +52,7 @@ rule get_baselayers:
         stderr=get_path('logs/get_baselayers.err')
 
     output:
-        done_flag=get_path('data/baselayers/all_baselayers_merged.done')
+        done_flag=get_path('data/baselayers/done/all_baselayers_merged.done')
 
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
@@ -62,7 +62,7 @@ rule get_landfire:
     output: 
         ## TEMP output of downloading initial CONUS-wide files
         # LANDFIRE
-        done_flag=get_path("data/baselayers/landfire_{prod}_processed.done"),
+        done_flag=get_path("data/baselayers/done/landfire_{prod}_processed.done"),
 
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir=directory(get_path('data/baselayers/downloadlogs_metadata/{prod}'))
@@ -98,11 +98,11 @@ rule get_landfire:
 
 rule make_hdist:
     input:
-        get_path("data/baselayers/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
+        get_path("data/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
 
     output:
         merged_out_path=get_path(config['BASELAYERS']['annual_dist']['fname']),
-        done_flag=get_path("data/baselayers/make_hdist.done")
+        done_flag=get_path("data/baselayers/done/make_hdist.done")
 
     params:
         annual_dist_dir=get_path(config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name']),
@@ -145,12 +145,12 @@ rule make_hdist:
         
 rule make_agdevmask:
     input:
-        get_path("data/baselayers/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
+        get_path("data/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
 
     output: 
         # Output flag for merged agdev mask .nc
         merged_out_path=get_path(config['BASELAYERS']['agdev_mask']['fname']),
-        done_flag=get_path("data/baselayers/agdev_mask.done")
+        done_flag=get_path("data/baselayers/done/agdev_mask.done")
 
     params:
         nlcd_dir=get_path(config['NLCD']['dir_name']),
@@ -183,7 +183,7 @@ rule make_agdevmask:
 
 rule make_mtbs_bundles:
     output:
-        done_flag=get_path("data/baselayers/mtbs_bundles.done")
+        done_flag=get_path("data/baselayers/done/mtbs_bundles.done")
 
     params:
         wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
@@ -225,11 +225,11 @@ rule make_mtbs_bundles:
 
 rule merge_topo:
     input:
-        expand(get_path("data/baselayers/landfire_{prod}_processed.done"), prod=TOPO_LAYERS)
+        expand(get_path("data/baselayers/done/landfire_{prod}_processed.done"), prod=TOPO_LAYERS)
 
     output:
         out_f=get_path(config['BASELAYERS']['topo']['fname']),
-        done_flag=get_path("data/baselayers/merge_topo.done")
+        done_flag=get_path("data/baselayers/done/merge_topo.done")
 
     params:
         elev_dir=get_path(config['LANDFIRE_PRODUCTS']['Elev']['dir_name']),
@@ -259,7 +259,7 @@ rule merge_topo:
 
 rule download_nlcd:
     output:
-        done_flag=get_path("data/baselayers/download_nlcd.done")
+        done_flag=get_path("data/baselayers/done/download_nlcd.done")
 
     params:
         download_link=config['NLCD']['annual_nlcd_link'],
@@ -294,12 +294,12 @@ rule download_nlcd:
 
 rule make_groupings:
     input:
-        get_path("data/baselayers/download_nlcd.done"),
-        get_path("data/baselayers/merge_topo.done")
+        get_path("data/baselayers/done/download_nlcd.done"),
+        get_path("data/baselayers/done/merge_topo.done")
 
     output:
         out_f=get_path(config['BASELAYERS']['groupings']['fname']),
-        done_flag=get_path("data/baselayers/make_groupings.done")
+        done_flag=get_path("data/baselayers/done/make_groupings.done")
 
     params:
         elev_band_m=config['ELEV_BANDS_METERS'],
