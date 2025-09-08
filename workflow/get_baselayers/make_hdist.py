@@ -73,6 +73,8 @@ def make_hdist(dist_dir, out_f, clipBBox=None, NO_DIST_VAL=0, dtype_out='int8', 
     annual_dist_da.annual_dist.rio.set_nodata(NO_DIST_VAL, inplace=True)
     annual_dist_da.cumulative_annual_dist.rio.set_nodata(NO_DIST_VAL, inplace=True)
     annual_dist_da.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+    print(template_rxr.rio.crs)
+    annual_dist_da.rio.write_crs(template_rxr.rio.crs, inplace=True)
     print(annual_dist_da, flush=True)
     
     # Save to final output file

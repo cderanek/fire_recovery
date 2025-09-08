@@ -45,17 +45,21 @@ def make_singleyear_groupings(nlcd_tif, elev_groupings_tif, nlcd_yr_csv, output_
 
 
 def get_elev_groupings(template_tif, merged_topo, elevation_band_m):
-    # open, align
-    _, topo_rxr = reproj_align_rasters(
-        'reproj_match', 
-        template_tif, 
-        xr.open_dataset(merged_topo, format='NETCDF4', engine='netcdf4'))
-
-    elev_rxr = topo_rxr.sel(band='Elev').__xarray_dataarray_variable__
-    elev_rxr.data = np.where(elev_rxr.data == -9999, np.nan, elev_rxr.data)
-
+    topo_rxr = xr.open_dataset(merged_topo, format='NETCDF4', engine='netcdf4')
+    crs_orig = topo_rxr['spatial_ref'].crs_wkt
+    elev_rxr = topo_rxr.sel(band='Elev').__xarray_dataarray_variable__.rio.write_crs(crs_orig)
+    
+    # memory management
     del topo_rxr
     gc.collect()
+
+    # open, align
+    _, elev_rxr = reproj_align_rasters(
+        'reproj_match', 
+        template_tif, 
+        elev_rxr)
+
+    elev_rxr.data = np.where(elev_rxr.data == -9999, np.nan, elev_rxr.data)
 
     # convert to bands
     elev_rxr.data = np.floor_divide(elev_rxr.data, elevation_band_m)
@@ -122,6 +126,7 @@ def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, outp
 
     # merge all tifs along band dim and save
     merged_groupings = xr.concat(yr_layers, dim=('band'))
+    merged_groupings.rio.write_crs(yr_layers[0].rio.crs, inplace=True)
     merged_groupings.to_netcdf(output_f)
     print(f'Saved to {output_f}', flush=True)
 
