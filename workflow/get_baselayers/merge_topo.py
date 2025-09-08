@@ -29,7 +29,11 @@ def merge_topo(topo_f_list, out_f):
         .astype('int16') 
         for r, band_name in zip(topo_rxr_layers, band_names)
         ]
-    out_rxr_merged = xr.concat(topo_rxr_layers, dim=('band'))
+
+    out_rxr_merged = (
+        xr.concat(topo_rxr_layers, dim=('band'))
+        .rio.write_crs(topo_rxr_layers[0].rio.crs)
+        .rio.set_nodata(-9999))
     out_rxr_merged.to_netcdf(out_f)
     print(f'Saved to {out_f}', flush=True)
 
