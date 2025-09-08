@@ -6,7 +6,7 @@ RECOVERY_MAPS_DIR: 'data/recovery_maps/'
 
 ### TEST SETTINGS ####
 TESTING: True
-TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_conusalbers_testROI.shp'
+TEST_ROI: 'data/test_data/test_ROIS_pts/UL_CA_wgs84_testROI.shp'
 
 
 ### RECOVERY PARAMETERS ####

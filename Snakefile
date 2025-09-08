@@ -1,5 +1,7 @@
 import os
+
 configfile: 'configs/config.yml'
+include: 'rules/common.smk'
 
 # Set paths based on testing mode
 TESTING = config['TESTING']
@@ -8,15 +10,6 @@ if TESTING:
     DATA_PREFIX = os.path.join('data/test_data/output', os.path.splitext(os.path.basename(ROI_PATH))[0])
 else:
     ROI_PATH = config['ROI']
-
-# Helper fn to add prefix when in testing mode
-def get_path(path):
-    if TESTING:
-        if path.startswith("data/"):
-            return path.replace("data/", f"{DATA_PREFIX}/", 1)
-        if path.startswith("logs/"):
-            return path.replace("logs/", f"{DATA_PREFIX}/logs/", 1)
-    return path
 
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
 BASELAYER_FILES = list(config['BASELAYERS'].keys())
@@ -145,7 +138,7 @@ rule make_hdist:
         
 rule make_agdevmask:
     input:
-        get_path("data/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
+        get_path("data/baselayers/done/download_nlcd.done")
 
     output: 
         # Output flag for merged agdev mask .nc

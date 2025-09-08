@@ -118,14 +118,14 @@ def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, outp
         yr_layers.append(
             yr_layer
             .expand_dims(time=[curr_date])
-            .transpose('time', 'band','y','x')
+            .transpose('band', 'time', 'y','x')
             .fillna(nodataval)
             .rio.set_nodata(nodataval)
             .astype(output_dtype)
         )
 
     # merge all tifs along band dim and save
-    merged_groupings = xr.concat(yr_layers, dim=('band'))
+    merged_groupings = xr.concat(yr_layers, dim=('time'))
     merged_groupings.rio.write_crs(yr_layers[0].rio.crs, inplace=True)
     merged_groupings.to_netcdf(output_f)
     print(f'Saved to {output_f}', flush=True)
