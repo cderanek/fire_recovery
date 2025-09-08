@@ -91,7 +91,7 @@ def make_fire_spatialbundle(args):
         fireid, year, wumi_data_dir, mtbs_sevraster_dir, wumi_projection, output_dir = args
 
         # locate the relevant WUMI subidr, MTBS tif file
-        wumi_dir = os.path.join(wumi_data_dir, str(year), fire_id)
+        wumi_dir = os.path.join(wumi_data_dir, str(year), fireid)
         mtbs_sev_tif = glob.glob(os.path.join(mtbs_sevraster_dir, f'*_{year}.tif'))
         assert len(mtbs_sev_tif) == 1, f'Found {len(mtbs_sev_tif)} tif files in {os.path.join(mtbs_sevraster_dir, str(year))}, when there should be exactly 1. \nExiting.'
         mtbs_sev_tif = mtbs_sev_tif[0]
@@ -105,11 +105,17 @@ def make_fire_spatialbundle(args):
         assert len(f) == 1, f'Found {len(f)} shapefiles in {os.path.join(wumi_dir, '*_mtbs*.shp')}, when there should be exactly 1. \nExiting.'
         f = f[0]
         wumi_mtbs_shp_f = os.path.join(fire_output_dir, f'{fireid}_wumi_mtbs_poly.shp')
+        print('ABOUT TO OUTPUT TO:')
+        print(wumi_mtbs_shp_f)
+        print(gpd.read_file(f))
         (
             gpd.read_file(f)
             .set_crs(wumi_projection)
             .to_file(wumi_mtbs_shp_f)
         )
+        print('CREATED:')
+        print(gpd.read_file(wumi_mtbs_shp_f))
+        
         assert len(gpd.read_file(f))==1, f'{f} is a multipolygon. len({f})!=1. \nExiting.'
 
         # extract sevraster for this polygon and save to {output_dir}/{wumi_fireid}/spatialinfo/
@@ -144,12 +150,17 @@ def make_fire_bundles_parallel(
         output_dir: str,
         n_processes: int
     ) -> None:
-    
+    print('In fire bundles parallel')
+    print('fireid_years_events')
+    print(fireid_years_events)
+
     # Prepare args for each fire
     args_list = [
         (fireid, year, wumi_data_dir, mtbs_sevraster_dir, wumi_projection, output_dir)
         for fireid, year in fireid_years_events
     ]
+    print('args_list')
+    print(args_list)
 
      # Process fires in parallel
     with Pool(processes=n_processes) as pool:
@@ -179,12 +190,13 @@ if __name__ == '__main__':
 
     # FILTER -- LIST OF ALL MTBS SUBFIRES IN CA FOR DESIRED YEARS
     fireid_years_events, total_count = get_wumi_id_years(subfires_csv, start_year, end_year)
+    fireid_years_events = list(fireid_years_events)
 
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
     wumi_projection = rxr.open_rasterio(wumi_projection_raster).rio.crs
 
     make_fire_bundles_parallel(
-        list(fireid_years_events), 
+        fireid_years_events, 
         wumi_data_dir, 
         mtbs_sevraster_dir, 
         wumi_projection,

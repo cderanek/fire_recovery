@@ -5,12 +5,12 @@ RECOVERY_MAPS_DIR: 'data/recovery_maps/'
 
 
 ### TEST SETTINGS ####
-TESTING: False
+TESTING: True
 TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_conusalbers_testROI.shp'
 
 
 ### RECOVERY PARAMETERS ####
-START_YEAR: 1990 # this is when Landfire Dist starts
+START_YEAR: 1999 # this is when Landfire Dist starts
 END_YEAR: 2020
 ELEV_BANDS_METERS: 500
 
@@ -59,17 +59,17 @@ WUMI_PRODUCTS:
 
 BASELAYERS:
   agdev_mask: 
-    fname: 'data/baselayers/agdev_mask.tif'
+    fname: 'data/baselayers/merged/agdev_mask.tif'
     dtype: 'int8'
     var_names: []
     dims: []
   topo: 
-    fname: 'data/baselayers/topo.nc'
+    fname: 'data/baselayers/merged/topo.nc'
     dtype: ''
     var_names: []
     dims: []
   annual_dist: 
-    fname: 'data/baselayers/annual_dist.nc'
+    fname: 'data/baselayers/merged/annual_dist.nc'
     dtype: 'int8'
     nodataval: 0 # meaning, we have no record of disturbance here
     var_names: []
@@ -78,7 +78,7 @@ BASELAYERS:
       ydim: 'y'
       timedim: 'time'
   groupings: 
-    fname: 'data/baselayers/annual_veg_grouping.nc'
+    fname: 'data/baselayers/merged/annual_veg_grouping.nc'
     dtype: ''
     var_names: []
     dims: []

@@ -14,10 +14,7 @@ snakemake --lint
 snakemake --dry-run
 snakemake -c 1
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
-snakemake --profile profiles/age \
-          --groups rap_download_group=group0 \
-          --group-components group0=1
-
+snakemake --profile profiles/age
 
 snakemake -c 1 \
 --cluster "qsub -cwd \

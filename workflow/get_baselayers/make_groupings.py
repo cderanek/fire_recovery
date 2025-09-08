@@ -1,4 +1,4 @@
-import sys, subprocess, os, gc
+import sys, subprocess, os, gc, glob
 import pandas as pd
 import numpy as np
 import xarray as xr
@@ -31,7 +31,7 @@ def make_singleyear_groupings(nlcd_tif, elev_groupings_tif, nlcd_yr_csv, output_
     for _, row in output_csv.iterrows():
         group_code = int(row['id'])
         nlcd_name = row['NLCD_NAME']
-        nlcd_val = int(nlcd_yr_csv['NLCD_CODE'][nlcd_yr_csv['NLCD_NAME'] == nlcd_name])
+        nlcd_val = int(nlcd_yr_csv['NLCD_CODE'][nlcd_yr_csv['NLCD_NAMES'] == nlcd_name].iloc[0])
         elev_band = int(row['ELEV_BAND'])
         
         out_data = np.where(
@@ -51,7 +51,8 @@ def get_elev_groupings(template_tif, merged_topo, elevation_band_m):
         template_tif, 
         xr.open_dataset(merged_topo, format='NETCDF4', engine='netcdf4'))
 
-    elev_rxr = topo_rxr.sel(band='Elev')
+    elev_rxr = topo_rxr.sel(band='Elev').__xarray_dataarray_variable__
+    elev_rxr.data = np.where(elev_rxr.data == -9999, np.nan, elev_rxr.data)
 
     del topo_rxr
     gc.collect()
@@ -71,14 +72,14 @@ def get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m):
     groups = list(product(unique_veg_groups, elev_groupings))
 
     output_csv = pd.DataFrame({
-        'id': range(1, len(combinations)+1),
+        'id': range(1, len(groups)+1),
         'NLCD_NAME': [group[0] for group in groups],
         'ELEV_BAND': [group[1] for group in groups],
         'ELEV_LOWER_BOUND': [group[1]*elevation_band_m for group in groups]
     })
 
     # Determine output dtype for final .nc file
-    if len(combinations)+1 < np.iinfo(np.int8).max: output_dtype = np.int8
+    if len(groups)+1 < np.iinfo(np.int8).max: output_dtype = np.int8
     else: output_dtype = np.int16
     nodataval = 0
 
@@ -86,7 +87,7 @@ def get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m):
 
 
 def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, output_f):
-
+    all_tifs = glob.glob(os.path.join(nlcd_dir, '*_clipped.tif'))
     nlcd_csv = pd.read_csv(nlcd_csv)
     template_tif = rxr.open_rasterio(all_tifs[0])
 
@@ -104,16 +105,16 @@ def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, outp
         _, tif = reproj_align_rasters('reproj_match', template_tif, rxr.open_rasterio(tif_f))
         
         # get this year's original NLCD csv + format year as np datetime
-        year = os.path.basename(tif_f).split('_')[3]
+        year = int(os.path.basename(tif_f).split('_')[3])
         nlcd_yr_csv = nlcd_csv[nlcd_csv['year'] == year]
-        curr_date = np.datetime64('-'.join([str(curr_yr), '12', '31']), 'ns')
+        curr_date = np.datetime64('-'.join([str(year), '12', '31']), 'ns')
 
         # get this year's grouping layer, add date dim, dtype info]
-        yr_layer, output_csv = make_singleyear_groupings(tif, elev_rxr, nlcd_yr_csv, output_csv, nodataval)
+        yr_layer = make_singleyear_groupings(tif, elev_rxr, nlcd_yr_csv, output_csv, nodataval)
         yr_layers.append(
             yr_layer
             .expand_dims(time=[curr_date])
-            .transpose('band','y','x')
+            .transpose('time', 'band','y','x')
             .fillna(nodataval)
             .rio.set_nodata(nodataval)
             .astype(output_dtype)
@@ -133,13 +134,13 @@ def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, outp
 
 if __name__ == '__main__':
     print(f'Running make_groupings.py with arguments {'\n'.join(sys.argv)}\n')
-    elevation_band_m = sys.argv[1]
+    elevation_band_m = int(sys.argv[1])
     nlcd_dir = sys.argv[2]
     nlcd_vegcodes_csv = sys.argv[3]
-    merged_topo = sys.arg[4]
+    merged_topo = sys.argv[4]
     output_f = sys.argv[5]
     done_flag = sys.argv[6]
 
-    make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, output_f)
+    make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_vegcodes_csv, merged_topo, output_f)
 
     subprocess.run(['touch', done_flag])

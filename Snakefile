@@ -12,8 +12,10 @@ else:
 # Helper fn to add prefix when in testing mode
 def get_path(path):
     if TESTING:
-        if path.startswith("data/") or path.startswith("logs/"):
+        if path.startswith("data/"):
             return path.replace("data/", f"{DATA_PREFIX}/", 1)
+        if path.startswith("logs/"):
+            return path.replace("logs/", f"{DATA_PREFIX}/logs/", 1)
     return path
 
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
@@ -38,6 +40,9 @@ rule get_baselayers:
     input:
         [get_path(config['BASELAYERS'][prod]['fname']) for prod in BASELAYER_FILES],
         get_path("data/baselayers/mtbs_bundles.done")
+
+    params:
+        email=config['NOTIFY_EMAIL']
 
     conda: 
         'workflow/envs/get_baselayers_env.yml'
@@ -95,8 +100,7 @@ rule make_hdist:
     input:
         get_path("data/baselayers/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
 
-    output: 
-        # Output flag for merged agdev mask .nc
+    output:
         merged_out_path=get_path(config['BASELAYERS']['annual_dist']['fname']),
         done_flag=get_path("data/baselayers/make_hdist.done")
 
@@ -184,7 +188,7 @@ rule make_mtbs_bundles:
     params:
         wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
         wumi_proj=config['WUMI_PRODUCTS']['projection_raster'],
-        wumi_data_dir=get_path(config['WUMI_PRODUCTS']['data_dir']),
+        wumi_data_dir=config['WUMI_PRODUCTS']['data_dir'],
         mtbs_sevrasters_dir=config['WUMI_PRODUCTS']['mtbs_rasters_dir'],
         start_year=config['START_YEAR'],
         end_year=config['END_YEAR'],
@@ -294,14 +298,14 @@ rule make_groupings:
         get_path("data/baselayers/merge_topo.done")
 
     output:
-        out_f=get_path(config['BASELAYERS']['groupings']['fname'])
+        out_f=get_path(config['BASELAYERS']['groupings']['fname']),
+        done_flag=get_path("data/baselayers/make_groupings.done")
 
     params:
         elev_band_m=config['ELEV_BANDS_METERS'],
         nlcd_dir=get_path(config['NLCD']['dir_name']),
         vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
         merged_topo=get_path(config['BASELAYERS']['topo']['fname']),
-        out_f=get_path(config['BASELAYERS']['groupings']['fname']),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -320,6 +324,6 @@ rule make_groupings:
         {params.nlcd_dir} \
         {params.vegcodes_csv} \
         {params.merged_topo} \
-        {params.out_f} \
+        {output.out_f} \
         {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """
