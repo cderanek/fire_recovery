@@ -61,17 +61,7 @@ def buffer_firepoly(
     # Reproject the buffered gpd object to the original crs
     fire_poly = fire_poly_utm.to_crs(fire_poly.crs)
     
-    # Get the envelope (smallest bbox) of the geometry to get rid of multipolygons
-    total_burn_area = np.sum(fire_poly['BurnBndAc'])
-    total_geom = fire_poly.union_all()
-    
-    ## Select only the row with the larged burned area to preserve, then update total burned area to be cumulative
-    fire_poly = fire_poly[fire_poly['BurnBndAc']==np.nanmax(fire_poly['BurnBndAc'])]
-    fire_poly['BurnBndAc'] = total_burn_area
-    fire_poly.geometry = [total_geom]
-
     # Save to new shapefile
-    fire_poly['Ig_Date'] = pd.to_datetime(fire_poly['Ig_Date'], unit='ms').dt.strftime('%Y-%m-%d') # update Ig_Date to be more readable
     fire_poly.to_file(out_f, mode='w')
 
     return fire_poly, out_f

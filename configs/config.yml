@@ -90,24 +90,15 @@ BASELAYERS:
   agdev_mask: 
     fname: 'data/baselayers/merged/agdev_mask.tif'
     dtype: 'int8'
-    var_names: []
-    dims: []
   topo: 
     fname: 'data/baselayers/merged/topo.nc'
-    dtype: ''
-    var_names: []
-    dims: []
   annual_dist: 
     fname: 'data/baselayers/merged/annual_dist.nc'
     dtype: 'int8'
     nodataval: 0 # meaning, we have no record of disturbance here
-    var_names: []
     dims:
       xdim: 'x'
       ydim: 'y'
       timedim: 'time'
   groupings: 
     fname: 'data/baselayers/merged/annual_veg_grouping.nc'
-    dtype: ''
-    var_names: []
-    dims: []

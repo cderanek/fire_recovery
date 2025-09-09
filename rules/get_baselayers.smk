@@ -35,7 +35,7 @@ rule get_landfire:
         email=config['NOTIFY_EMAIL']
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/get_landfire_{prod}.log'),
@@ -79,7 +79,7 @@ rule make_hdist:
         mem_gb=100
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log:
         stdout=get_path('logs/make_hdist.log'),
@@ -122,7 +122,7 @@ rule make_agdevmask:
         mem_gb=100
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/agdev_mask.log'),
@@ -160,7 +160,7 @@ rule make_mtbs_bundles:
         cpus=1
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/mtbs_bundles.log'),
@@ -198,7 +198,7 @@ rule merge_topo:
         email=config['NOTIFY_EMAIL']
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/merge_topo.log'),
@@ -231,7 +231,7 @@ rule download_nlcd:
         email=config['NOTIFY_EMAIL']
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/download_nlcd.log'),
@@ -269,7 +269,7 @@ rule make_groupings:
         email=config['NOTIFY_EMAIL']
 
     conda: 
-        'workflow/envs/get_baselayers_env.yml'
+        '../workflow/envs/get_baselayers_env.yml'
 
     log: 
         stdout=get_path('logs/make_groupings.log'),
