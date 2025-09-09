@@ -6,13 +6,42 @@ RECOVERY_MAPS_DIR: 'data/recovery_maps/'
 
 ### TEST SETTINGS ####
 TESTING: True
-TEST_ROI: 'data/test_data/test_ROIS_pts/UL_CA_wgs84_testROI.shp'
+TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_wgs84_testROI.shp'
 
 
 ### RECOVERY PARAMETERS ####
 START_YEAR: 1999 # this is when Landfire Dist starts
 END_YEAR: 2020
 ELEV_BANDS_METERS: 500
+
+
+### LANDSAT DOWNLOAD PARAMETERS ####
+LANDSAT:
+  NDVI_BANDS_DICT: {  # which bands to use to calculate NDVI for each LS product; in order of NIR, RED
+      4: ['SR_B4', 'SR_B3'],
+      5: ['SR_B4', 'SR_B3'],
+      7: ['SR_B4', 'SR_B3'],
+      8: ['SR_B5', 'SR_B4'],
+      9: ['SR_B5', 'SR_B4']
+  }
+  RGB_BANDS_DICT: {  # RGB bands, in order, for each LS product
+      4: ['SR_B3', 'SR_B2', 'SR_B1'],
+      5: ['SR_B3', 'SR_B2', 'SR_B1'],
+      7: ['SR_B3', 'SR_B2', 'SR_B1'],
+      8: ['SR_B4', 'SR_B3', 'SR_B2'],
+      9: ['SR_B4', 'SR_B3', 'SR_B2']
+  }
+  VALID_LAYERS: ['QA_PIXEL', 'QA_RADSTAT', 'QA_AEROSOL', 'SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5'] # Valid layers to use in processing
+  PRODUCT_LAYERS: {  # which bands to use to calculate NDVI, RGB, cloud mask for each LS product
+      'L04.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
+      'L05.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
+      'L07.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
+      'L08.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL'],
+      'L09.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
+  }
+  DEFAULT_NODATA: -9999
+  NUM_PARALLEL_WORKERS: 6 # Max parallel workers/num cores to request for data download
+  APPEEARS_API_ENDPOINT: 'https://appeears.earthdatacloud.nasa.gov/api/'
 
 
 ### GET_BASELAYERS ####

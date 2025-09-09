@@ -14,6 +14,8 @@ snakemake --lint
 snakemake --dry-run
 snakemake -c 1
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
+snakemake --dag | dot -Tpng > dag.png
+
 snakemake --profile profiles/age
 
 snakemake -c 1 \
