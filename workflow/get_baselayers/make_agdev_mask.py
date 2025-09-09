@@ -14,13 +14,16 @@ def update_agdev_mask(r, rat, agdev_mask_combined, dtype_out):
     0: unmasked values, not known to be ag or dev
     1: masked values, ag or dev
     '''
+    
+    # make np array with 1s for agdev, 0 for non-agdev
     ag_dev_values = rat['NLCD_CODE'][rat['NLCD_NAMES'].str.lower().str.contains('agricult|develop|crop|pasture|cultiv')].values
     ag_dev_mask = np.where(np.isin(r.data.squeeze(), ag_dev_values), 1, 0).astype(dtype_out)
     
-    # update existing mask
+    # create new mask if none exists
     if agdev_mask_combined is None:
         agdev_mask_combined = ag_dev_mask
-        
+
+    # update existing mask        
     else:
         agdev_mask_combined = np.nanmax(
             np.array(
@@ -29,7 +32,7 @@ def update_agdev_mask(r, rat, agdev_mask_combined, dtype_out):
             axis=0
             ).squeeze()
         
-    # Free memory
+    # memory management
     del ag_dev_mask, ag_dev_values
     gc.collect()
     
@@ -39,11 +42,14 @@ def create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out):
     # glob
     all_nlcd_tifs = glob.glob(os.path.join(nlcd_dir,'*_clipped.tif'))
     template_tif = all_nlcd_tifs[0]
+
+    # open agdev rasters + NLCD code/name mapping
     template_r = rxr.open_rasterio(template_tif)
     vegcodes_df = pd.read_csv(vegcodes_csv)
     vegcodes_df['NLCD_CODE']=vegcodes_df['NLCD_CODE'].astype('int')
     vegcodes_df['year']=vegcodes_df['year'].astype('int')
 
+    # update agdev mask with each year's agdev info
     agdev_mask_combined = None
     for f in all_nlcd_tifs:
         print(f'Adding information from {f} to agrdev mask.')
@@ -58,6 +64,7 @@ def create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out):
         # update mask
         agdev_mask_combined = update_agdev_mask(r, vegcodes_yr, agdev_mask_combined, dtype_out)
 
+        # memory management
         del r, vegcodes_yr
         gc.collect()
 
@@ -67,19 +74,24 @@ def create_agdev_mask(nlcd_dir, vegcodes_csv, merged_out_path, dtype_out):
     print('--------')
     print(template_r.coords, template_r.dims, template_r.rio.crs)
 
-    # save to output file
+    # create merge rxr da
     agdev_mask_da = xr.DataArray(
         np.array([agdev_mask_combined.squeeze()]),
         coords=template_r.coords,
         dims=template_r.dims
     ).rio.write_crs(template_r.rio.crs)
+
+    # memory management
     del agdev_mask_combined
     gc.collect()
+
+    # save output
     agdev_mask_da.rio.to_raster(merged_out_path, dtype=dtype_out)
     
     # save printout to summary txt file
     with open(merged_out_path.replace('.tif', '_summary.txt'), 'w') as f:
         print(agdev_mask_da, file=f)
+
 
 
 if __name__ == "__main__":

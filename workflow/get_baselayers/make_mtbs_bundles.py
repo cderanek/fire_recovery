@@ -55,7 +55,7 @@ def confirm_burned(
     ) -> bool:
     # returns True if >90% of pixels in the burn boundary are true MTBS burn values (1<=val<=6) AND all pixels out of the burn boundary are nan
     
-    # Rasterize burn poly
+    # rasterize burn poly
     burn_poly = burn_poly.to_crs(fire_sev_tif.rio.crs)
     mask = rasterize(
         burn_poly.geometry,
@@ -67,18 +67,19 @@ def confirm_burned(
         all_touched=True
     )
 
-    # Count total pixels, make bool layer of burned pixels 
+    # count total pixels, make bool layer of burned pixels 
     total_burn_pixels, total_unburned_pixels = np.sum(mask), np.sum(mask==0)
     burn_data = fire_sev_tif.data.squeeze()
     burn_pixels = (burn_data>0) & (burn_data<=6)
 
-    # Count burn pixels in/out fire boundary
+    # count burn pixels in/out fire boundary
     burn_pixels_in_boundary = burn_pixels & mask
     burn_pixels_out_boundary = burn_pixels & (mask==0)
 
     pct_burned_in_boundary = np.sum(burn_pixels_in_boundary) / np.sum(mask==1)
     pct_burned_out_boundary = np.sum(burn_pixels_out_boundary) / np.sum(mask)
 
+    # check if >90% burned inside polygon and <10% burned outside 
     if (pct_burned_in_boundary > 0.9) and (pct_burned_out_boundary < 0.1):
         return True
     else:
@@ -150,17 +151,17 @@ def make_fire_bundles_parallel(
         output_dir: str,
         n_processes: int
     ) -> None:
-    # Prepare args for each fire
+    # list args for each fire
     args_list = [
         (fireid, year, wumi_data_dir, mtbs_sevraster_dir, wumi_projection, output_dir)
         for fireid, year in fireid_years_events
     ]
 
-     # Process fires in parallel
+     # process fires in parallel
     with Pool(processes=n_processes) as pool:
         results = pool.map(make_fire_spatialbundle, args_list)
     
-    # Print summary
+    # summary
     successes = [r for r in results if r.startswith("SUCCESS")]
     errors = [r for r in results if r.startswith("ERROR")]
     
@@ -182,6 +183,8 @@ if __name__ == '__main__':
     done_flag = sys.argv[8]
     n_processes = int(sys.argv[9])
 
+    os.makedirs(output_dir, exist_ok=True)
+
     # FILTER -- LIST OF ALL MTBS SUBFIRES IN CA FOR DESIRED YEARS
     fireid_years_events, total_count = get_wumi_id_years(subfires_csv, start_year, end_year)
     fireid_years_events = list(fireid_years_events)
@@ -189,7 +192,6 @@ if __name__ == '__main__':
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
     wumi_projection = rxr.open_rasterio(wumi_projection_raster).rio.crs
 
-    os.makedirs(output_dir, exist_ok=True)
     make_fire_bundles_parallel(
         fireid_years_events, 
         wumi_data_dir, 

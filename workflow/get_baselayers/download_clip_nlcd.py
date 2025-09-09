@@ -11,12 +11,13 @@ python workflow/get_baselayers/download_clip_nlcd.py https://www.mrlc.gov/downlo
 '''
 
 def download_clip_nlcd(f, out_dir, ROI):
+    # download data to out_dir
     downloaded_f = download_nlcd(f, out_dir)
-
-    # then, clip
+    
+    # unzip downloaded data, clip to ROI
     unzip_clip(downloaded_f, out_dir, ROI)
 
-    # export vegtype_code_name.csv
+    # get df of veg codes, names mapping
     year_df = get_code_vegname_df(downloaded_f)
 
     return year_df
@@ -62,20 +63,25 @@ def unzip_clip(f, out_dir, ROI):
     subprocess.run(['rm', '-r', tif])
     
 def get_code_vegname_df(downloaded_f):
-    rat = downloaded_f.replace('.zip', '.tif.aux.xml')
-    print(f'Reading {rat}')
-    tree = ET.parse(rat)
+    # open, parse xml
+    pam = downloaded_f.replace('.zip', '.tif.aux.xml')
+    print(f'Reading {pam}')
+    tree = ET.parse(pam)
     root=tree.getroot()
+
+    # extract veg codes and corresponding names
     codes, class_names = [], []
     for nlcd_info in root.findall('.//Row'): 
         index = nlcd_info.get('index')
         codes.append(int(nlcd_info.findall('F')[0].text))
         class_names.append(nlcd_info.findall('F')[-1].text)
-        
+    
+    # save to df
     df = pd.DataFrame({
         'NLCD_CODE':codes,
         'NLCD_NAMES':class_names
     })
+
     return df
 
 
@@ -89,14 +95,19 @@ if __name__ == '__main__':
     ROI=sys.argv[6]
     done_flag=sys.argv[7]
 
+    # download/clip each year
+    # keep track of veg codes/names mapping for all processed years
     df_list = []
     for yr in range(start_year, end_year+1):
         df = download_clip_nlcd(download_link.replace('YEAR', str(yr)), out_dir, ROI)
         df['year'] = yr
         df_list.append(df)
 
+    # save veg codes/names mapping for all years
     os.makedirs(os.path.dirname(vegcodes_csv), exist_ok=True)
     pd.concat(df_list).to_csv(vegcodes_csv)
+
+    # done flag
     subprocess.run(['touch', done_flag])
 
 

@@ -59,6 +59,7 @@ def get_elev_groupings(template_tif, merged_topo, elevation_band_m):
         template_tif, 
         elev_rxr)
 
+    # set nodata to nan for np division
     elev_rxr.data = np.where(elev_rxr.data == -9999, np.nan, elev_rxr.data)
 
     # convert to bands
@@ -75,6 +76,7 @@ def get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m):
     elev_groupings = list(range(np.nanmin(elev_rxr.data), np.nanmax(elev_rxr.data)))
     groups = list(product(unique_veg_groups, elev_groupings))
 
+    # create output csv to organize groupings codes to NLCD name, elev band
     output_csv = pd.DataFrame({
         'id': range(1, len(groups)+1),
         'NLCD_NAME': [group[0] for group in groups],
@@ -91,6 +93,7 @@ def get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m):
 
 
 def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, output_f):
+    # open inputs
     all_tifs = glob.glob(os.path.join(nlcd_dir, '*_clipped.tif'))
     nlcd_csv = pd.read_csv(nlcd_csv)
     template_tif = rxr.open_rasterio(all_tifs[0])
