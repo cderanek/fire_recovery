@@ -58,6 +58,7 @@ rule get_baselayers:
 
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
+
 ### Make per-fire recovery maps ###
 rule perfire_recovery:
     """

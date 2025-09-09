@@ -1,0 +1,291 @@
+"""
+EarthAccess API downloader for Landsat data. Made with lots of help from Erik Bolch, USGS EROS
+
+USGS EROS tutorial:
+https://github.com/nasa/AppEEARS-Data-Resources
+"""
+
+import sys, os, re, time requests
+import earthaccess
+import geopandas as gpd
+import numpy as np
+from netrc import netrc
+
+
+APPEEARS_API_ENDPOINT = 'https://appeears.earthdatacloud.nasa.gov/api/'
+SLEEP_TIME = 60*5 # 5min pause between pings
+
+
+def download_landsat_data(roi_path:str, start_date:str, end_date:str, product_layers:dict, out_dir:str, redownload_data:bool=False):
+    """
+    Download 1 water year of Landsat data using EarthAccess API.
+    
+    Parameters:
+        roi_path (str): Path to region of interest shapefile
+        start_date (str): start date for data download, formatted as 'MM-DD-YYYY'
+        end_date (str): end date for data download, formatted as 'MM-DD-YYYY'
+        product_layers (dict): Dictionary of products and their layers
+        out_dir (str): Output directory for downloaded files
+        
+    Returns:
+        str: Path to the directory containing downloaded files
+    """
+    cleaned_roi_path = re.sub(r'[^a-zA-Z0-9_-]', '', os.path.basename(roi_path))
+    task_name = f'LS_{start_date}_{end_date}_{cleaned_roi_path}'
+    dest_dir = os.path.join(out_dir, task_name)
+    
+    # Request and download data, if not already downloaded
+    if not os.path.exists(dest_dir) or redownload_data:
+        # Create product request JSON
+        task_json = create_product_request_json(
+            task_name=task_name,
+            start_date=start_date,
+            end_date=end_date,
+            shp_file_path=roi_path,
+            product_layers=product_layers,
+            file_type='geotiff'
+        )
+        # Log in to earth access
+        head = login_earthaccess()
+        
+        # Post request, wait for response, get data bundle
+        bundle, task_id = post_request_get_bundle(task_json, head)
+        
+        # Create dir to hold data
+        os.makedirs(dest_dir, exist_ok=True)
+        
+        # Download data
+        download_landsat_bundle(bundle, task_id, head, dest_dir)
+    
+    return dest_dir
+
+def login_earthaccess():
+    try:
+        # Login to EarthAccess
+        earthaccess.login(persist=True)
+        
+        # Get token information and store in header
+        urs = 'urs.earthdata.nasa.gov'
+        token_response = requests.post(
+            f'{APPEEARS_API_ENDPOINT}login', 
+            auth=(netrc().authenticators(urs)[0], 
+                netrc().authenticators(urs)[2])
+        ).json()
+        token = token_response['token']
+        head = {'Authorization': f'Bearer {token}'}
+        
+        return head
+    
+    except Exception as e:
+        print(f'Error logging into EarthAccess. Error: {e}', flush=True)
+        time.sleep(SLEEP_TIME)
+        login_earthaccess() # Retry until we can login
+        return None
+    
+    
+def post_request_get_bundle(task_json:dict, head:dict):
+    try:
+        # Post request
+        task_id = post_request(task_json, head)
+
+        # Ping API until request is complete, then continue
+        ping_appears(task_id, head)
+        
+        # Return data bundle from posted request
+        print(f'Getting bundle for {task_id}', flush=True)
+        bundle = get_bundle(task_id, head)
+        
+        return bundle, task_id
+    
+    except Exception as e:
+        print(f'Error pinging request for {task_id}. Error: {e}', flush=True)
+        
+        print(f'Request failed. Deleting job {task_id}.', flush=True)
+        response = requests.delete(
+            f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
+            headers=head)
+        print(f'Response code for deletion: {response.status_code}', flush=True)
+        return None
+
+
+def stream_bundle_file(task_id, head, f, max_retries=30):
+    failures=0
+    while True:
+        try:
+            # Request bundle
+            dl = requests.get(f'{APPEEARS_API_ENDPOINT}bundle/{task_id}/{f}', 
+                                headers=head,
+                                stream=True,
+                                allow_redirects = 'True') # Get a stream to the bundle file
+            return dl
+            
+        except Exception as e:
+            failures+=1
+            print(f'Request to stream bundle file for {f} failed {failures}/{max_retries} times. Error: {e}', flush=True)
+            
+            if failures >= max_retries: 
+                print(f'Request to stream bundle file for {f} failed {failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
+                response = requests.delete(
+                    f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
+                    headers=head)
+                print(f'Response code for deletion: {response.status_code}', flush=True)
+                return False
+            else: time.sleep(SLEEP_TIME)    
+
+
+def get_bundle(task_id, head, max_retries=30):
+    failures=0
+    while True:
+        try:
+            # Request bundle
+            bundle = requests.get('{}bundle/{}'.format(APPEEARS_API_ENDPOINT,task_id), headers=head).json()  # Call API and return bundle contents for the task_id as json
+            return bundle
+            
+        except Exception as e:
+            failures+=1
+            print(f'Request failed {failures}/{max_retries} times. Error: {e}', flush=True)
+            
+            if failures >= max_retries: 
+                print(f'Request for bundle in get_bundle failed {failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
+                response = requests.delete(
+                    f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
+                    headers=head)
+                print(f'Response code for deletion: {response.status_code}', flush=True)
+                return False
+            else: time.sleep(SLEEP_TIME)    
+
+
+def post_request(task_json, head, max_retries=30):
+    failures=0
+    while True:
+        try:
+            # Post request
+            task_response = requests.post('{}task'.format(APPEEARS_API_ENDPOINT), json=task_json, headers=head).json()
+            print(task_response, flush=True)
+            task_id = task_response['task_id']
+            return task_id
+            
+        except Exception as e:
+            failures+=1
+            print(f'Request failed {failures}/{max_retries} times. Error: {e}', flush=True)
+            
+            if failures >= max_retries: 
+                print(f'Request in post_request failed {failures}/{max_retries} times. Exiting.', flush=True)
+                return False
+            else: time.sleep(SLEEP_TIME)           
+
+
+def ping_appears(task_id, head, max_retries=30):
+    
+    # Ping API until request is complete or we hit max consecutive failures
+    consecutive_failures=0
+    while True:
+        try:
+            response = requests.get(f'{APPEEARS_API_ENDPOINT}task/{task_id}', headers=head).json()['status']            
+            consecutive_failures=0 # we got a response, so reset consecutive_failures
+            
+            if response == 'done':
+                print(f'Finished processing {task_id}.', flush=True)
+                return True
+            time.sleep(SLEEP_TIME)
+            
+        except Exception as e:
+            consecutive_failures+=1
+            print(f'Request in ping_appears failed {consecutive_failures}/{max_retries} times. Error: {e}', flush=True)
+            
+            if consecutive_failures >= max_retries: 
+                print(f'Request failed {consecutive_failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
+                response = requests.delete(
+                    f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
+                    headers=head)
+                print(f'Response code for deletion: {response.status_code}', flush=True)
+                return False
+            else: time.sleep(SLEEP_TIME)
+
+    
+def download_landsat_bundle(bundle, task_id, head, dest_dir):
+    try:
+        # Fill dictionary with file_id as keys and file_name as values
+        files = {files[f['file_id']]: f['file_name'] for f in bundle['files']}
+            
+        # Iterate over all files in bundle, downloading all tif & nc files
+        for f in files:
+            if ('tif' in files[f]) or ('nc' in files[f]):
+                dl = stream_bundle_file(task_id, head, f)
+                
+                # Create dir to store downloaded data, if it doesn't exist
+                if files[f].endswith('.tif'):
+                    filename = files[f].split('/')[1]
+                else:
+                    filename = files[f] 
+                filepath = os.path.join(dest_dir, filename)
+                os.makedirs(dest_dir, exist_ok=True)
+                
+                # Write data 
+                with open(filepath, 'wb') as f: 
+                    for data in dl.iter_content(chunk_size=8192): f.write(data) 
+        print('Downloaded files can be found at: {}'.format(dest_dir), flush=True)
+        
+        return dest_dir
+    
+    except Exception as e:
+        print(f'Error downloading files for {dest_dir}. Error: {e}', flush=True)
+        return None
+
+
+def create_product_request_json(task_name: str, start_date:str, end_date:str, shp_file_path:str, product_layers:dict, file_type:str='geotiff'):
+    """
+    Create a JSON request for the AppEEARS API.
+    
+    Parameters:
+        task_name (str): Name for the task
+        start_date (str): Start date in format 'MM-DD-YYYY'
+        end_date (str): End date in format 'MM-DD-YYYY'
+        shp_file_path (str): Path to shapefile defining the region
+        product_layers (dict): Dictionary of products and their layers
+        file_type (str): Output file type (default: 'geotiff')
+        
+    Returns:
+        dict: JSON-formatted request for earth access API
+    """
+    # Format list of coords from shp file
+    coords_curr = list(gpd.read_file(shp_file_path).to_crs(4326).geometry.get_coordinates().values)
+    coords_curr = [list(coords) for coords in coords_curr]
+    if coords_curr[-1] != coords_curr[0]: coords_curr.append(coords_curr[0])
+    
+    # Format product layers for earth access json
+    prodLayer = list(np.array([[
+        {"layer": band, "product": product} for band in product_layers[product]
+    ] for product in product_layers]).flatten())
+
+    task_json = {
+        'task_type': 'area',
+        'task_name': task_name,
+        "params": {
+            "geo": {
+                "type": "FeatureCollection", 
+                "features": [{
+                    "type": "Feature", 
+                    "geometry": {
+                        "type": "Polygon", 
+                        "coordinates": [coords_curr]
+                    }, 
+                    "properties": {}
+                }], 
+                "fileName": "User-Drawn-Polygon"
+            }, 
+            "dates": [{
+                "endDate": end_date, 
+                "recurring": False, 
+                "startDate": start_date, 
+                "yearRange": [1950, 2050]}], 
+            "layers": prodLayer, 
+            "output": {
+                "format": {"type": file_type}, 
+                "projection": "native", 
+                "additionalOptions": {"orthorectify": True}
+            }
+        }
+    }
+
+    return task_json

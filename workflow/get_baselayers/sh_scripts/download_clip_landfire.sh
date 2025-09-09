@@ -10,9 +10,12 @@ METADATA_DIR=$6
 ROI_FILE=$7
 DONE_FLAG=$8
 
+# Activate venv
 . /u/local/Modules/default/init/modules.sh
 module load anaconda3
 conda activate $CONDA_ENV
+
+# Run .py file
 python workflow/get_baselayers/download_clip_landfire.py \
     "$PRODUCT_NAME" \
     "$DOWNLOAD_LINK" \
