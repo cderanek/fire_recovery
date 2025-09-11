@@ -58,48 +58,63 @@ rule get_baselayers:
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
 
-### Make per-fire recovery maps ###
-rule perfire_recovery:
-    """
-    separate job for each fire. each fire job includes: 
-    download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
-    """
-    input:
-         # need all baselayers in-place before we can submit the perfire recovery qsub task array
-        get_path('logs/baselayers/done/all_baselayers_merged.done')
+# ### Make per-fire recovery maps ###
+# rule make_recovery_config:
+#     input:
 
-    params:
-        email=config['NOTIFY_EMAIL']
+#     output:
 
-    conda: 
-        'workflow/envs/earthaccess_env.yml'
+#     params:
 
-    log: 
-        stdout=get_path('logs/get_baselayers/perfire_recovery.log'),
-        stderr=get_path('logs/get_baselayers/perfire_recovery.err')
+#     conda:
 
-    output:
-        done_flag=get_path('logs/baselayers/done/perfire_recovery.done')
+#     shell:
 
-    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
-"""
-Example of how to do json dumps/loads for Snakefile more commplex args:
-        # In your Snakefile rule
-        rule my_rule:
-            input: 'input.txt'
-            output: 'output.txt'
-            shell:
-                '''
-                my_batch_script.sh {input} {output} '{json.dumps(config["my_dict"])}'
-                '''
+# rule perfire_recovery:
+#     """
+#     separate job for each fire. each fire job includes: 
+#     download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
+#     """
+#     input:
+#         # need all baselayers in-place before we can submit the perfire recovery qsub task array
+#         get_path('logs/baselayers/done/all_baselayers_merged.done'),
+#         # need recovery params config ready
 
-        # In .py file
-        config_data = json.loads(sys.argv[3])  # Adjust index as needed
-        my_dict = config_data
-"""
+#     params:
+#         email=config['NOTIFY_EMAIL']
 
-### Merge all recovery maps ###
-"""
-task array: 1 job per 100 fires. last job waits for jobs 1 to n-1 to complete, then does final merge.
-"""
+#     conda: 
+#         'workflow/envs/earthaccess_env.yml'
+
+#     log: 
+#         stdout=get_path('logs/get_baselayers/perfire_recovery.log'),
+#         stderr=get_path('logs/get_baselayers/perfire_recovery.err')
+
+#     output:
+#         temp(f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}_{firename}_{fireid}_filepaths.json'),
+#         temp(f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}_{firename}_{fireid}_fire_metadata.json'),
+#         done_flag=get_path(f'logs/baselayers/done/perfire_recovery_{firename}_{fireid}.done')
+
+#     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
+
+# """
+# Example of how to do json dumps/loads for Snakefile more commplex args:
+#         # In your Snakefile rule
+#         rule my_rule:
+#             input: 'input.txt'
+#             output: 'output.txt'
+#             shell:
+#                 '''
+#                 my_batch_script.sh {input} {output} '{json.dumps(config["my_dict"])}'
+#                 '''
+
+#         # In .py file
+#         config_data = json.loads(sys.argv[3])  # Adjust index as needed
+#         my_dict = config_data
+# """
+
+# ### Merge all recovery maps ###
+# """
+# task array: 1 job per 100 fires. last job waits for jobs 1 to n-1 to complete, then does final merge.
+# """

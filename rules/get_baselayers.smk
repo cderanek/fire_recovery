@@ -38,8 +38,8 @@ rule get_landfire:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_landfire_{prod}.log'),
-        stderr=get_path('logs/get_landfire_{prod}.err')
+        stdout=get_path('logs/get_baselayer/get_landfire_{prod}.log'),
+        stderr=get_path('logs/get_baselayer/get_landfire_{prod}.err')
 
     shell:
         """
@@ -82,8 +82,8 @@ rule make_hdist:
         '../workflow/envs/get_baselayers_env.yml'
 
     log:
-        stdout=get_path('logs/make_hdist.log'),
-        stderr=get_path('logs/make_hdist.err')
+        stdout=get_path('logs/get_baselayer/make_hdist.log'),
+        stderr=get_path('logs/get_baselayer/make_hdist.err')
 
     shell:
         """
@@ -125,8 +125,8 @@ rule make_agdevmask:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/agdev_mask.log'),
-        stderr=get_path('logs/agdev_mask.err')
+        stdout=get_path('logs/get_baselayer/agdev_mask.log'),
+        stderr=get_path('logs/get_baselayer/agdev_mask.err')
 
     shell:
         """
@@ -145,6 +145,7 @@ rule make_mtbs_bundles:
         done_flag=get_path("logs/baselayers/done/mtbs_bundles.done")
 
     params:
+        ROI=ROI_PATH,
         wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
         wumi_proj=config['WUMI_PRODUCTS']['projection_raster'],
         wumi_data_dir=config['WUMI_PRODUCTS']['data_dir'],
@@ -152,6 +153,7 @@ rule make_mtbs_bundles:
         start_year=start_year,
         end_year=end_year,
         output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']),
+        wumi_summary_output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -163,13 +165,14 @@ rule make_mtbs_bundles:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/mtbs_bundles.log'),
-        stderr=get_path('logs/mtbs_bundles.err')
+        stdout=get_path('logs/get_baselayer/mtbs_bundles.log'),
+        stderr=get_path('logs/get_baselayer/mtbs_bundles.err')
 
     shell:
         """
         workflow/get_baselayers/sh_scripts/make_mtbs_bundles.sh \
              {params.conda_env} \
+             {params.ROI} \
              {params.wumi_subfires_csv} \
              {params.wumi_proj} \
              {params.wumi_data_dir} \
@@ -177,6 +180,7 @@ rule make_mtbs_bundles:
              {params.start_year} \
              {params.end_year} \
              {params.output_dir} \
+             (params.wumi_summary_output_dir) \
              {output.done_flag} \
              {resources.cpus}  > {log.stdout} 2> {log.stderr}
         """
@@ -201,8 +205,8 @@ rule merge_topo:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/merge_topo.log'),
-        stderr=get_path('logs/merge_topo.err')
+        stdout=get_path('logs/get_baselayer/merge_topo.log'),
+        stderr=get_path('logs/get_baselayer/merge_topo.err')
 
     shell:
         """
@@ -234,8 +238,8 @@ rule download_nlcd:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/download_nlcd.log'),
-        stderr=get_path('logs/download_nlcd.err')
+        stdout=get_path('logs/get_baselayer/download_nlcd.log'),
+        stderr=get_path('logs/get_baselayer/download_nlcd.err')
 
     shell:
         """
@@ -272,8 +276,8 @@ rule make_groupings:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/make_groupings.log'),
-        stderr=get_path('logs/make_groupings.err')
+        stdout=get_path('logs/get_baselayer/make_groupings.log'),
+        stderr=get_path('logs/get_baselayer/make_groupings.err')
 
     shell:
         """

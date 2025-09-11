@@ -5,7 +5,7 @@ ROI: 'data/ROI/california.shp'
 
 ### TEST SETTINGS ####
 TESTING: True
-TEST_ROI: 'data/test_data/test_ROIS_pts/LR_CA_wgs84_testROI.shp'
+TEST_ROI: 'data/test_data/test_ROIS_pts/shulightning_deerlick_ROI.shp'
 TEST_FIRE: '20140726_376750_1197830' # El Portal WUMI ID
 
 
