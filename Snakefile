@@ -14,15 +14,14 @@ include: 'rules/get_baselayers.smk'
 TESTING = config['TESTING']
 if TESTING:
     ROI_PATH = config['TEST_ROI']
-    DATA_PREFIX = os.path.join('data/test_data/output', os.path.splitext(os.path.basename(ROI_PATH))[0])
 else:
     ROI_PATH = config['ROI']
-
+DATA_PREFIX = os.path.splitext(os.path.basename(ROI_PATH))[0]
 
 ### Define targets for the full workflow ###
 rule all:
     input:
-        get_path('data/baselayers/done/all_baselayers_merged.done') # get baselayers
+        get_path('logs/baselayers/done/all_baselayers_merged.done') # get baselayers
         # get_path(ls_done_flag TBD) # get Landsat data
 
 
@@ -41,7 +40,7 @@ rule get_baselayers:
     """
     input:
         [get_path(config['BASELAYERS'][prod]['fname']) for prod in BASELAYER_FILES],
-        get_path("data/baselayers/done/mtbs_bundles.done")
+        get_path("logs/baselayers/done/mtbs_bundles.done")
 
     params:
         email=config['NOTIFY_EMAIL']
@@ -50,11 +49,11 @@ rule get_baselayers:
         'workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayers.log'),
-        stderr=get_path('logs/get_baselayers.err')
+        stdout=get_path('logs/get_baselayers/get_baselayers.log'),
+        stderr=get_path('logs/get_baselayers/get_baselayers.err')
 
     output:
-        done_flag=get_path('data/baselayers/done/all_baselayers_merged.done')
+        done_flag=get_path('logs/baselayers/done/all_baselayers_merged.done')
 
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
@@ -67,7 +66,7 @@ rule perfire_recovery:
     """
     input:
          # need all baselayers in-place before we can submit the perfire recovery qsub task array
-        get_path('data/baselayers/done/all_baselayers_merged.done')
+        get_path('logs/baselayers/done/all_baselayers_merged.done')
 
     params:
         email=config['NOTIFY_EMAIL']
@@ -76,11 +75,11 @@ rule perfire_recovery:
         'workflow/envs/earthaccess_env.yml'
 
     log: 
-        stdout=get_path('logs/perfire_recovery.log'),
-        stderr=get_path('logs/perfire_recovery.err')
+        stdout=get_path('logs/get_baselayers/perfire_recovery.log'),
+        stderr=get_path('logs/get_baselayers/perfire_recovery.err')
 
     output:
-        done_flag=get_path('data/baselayers/done/perfire_recovery.done')
+        done_flag=get_path('logs/baselayers/done/perfire_recovery.done')
 
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 

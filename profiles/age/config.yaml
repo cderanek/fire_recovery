@@ -10,8 +10,8 @@ default-resources:
   - runtime=6
   - mem_gb=20
   - cpus=1
-jobs: 50
-latency-wait: 30 #86400
+jobs: 5 # capping the max concurrent jobs kind of low to avoid overwhelming AppEEARS with requests (each job = ~20 appeears jobs)
+latency-wait: 30
 max-jobs-per-second: 10
 keep-going: true
 rerun-incomplete: true

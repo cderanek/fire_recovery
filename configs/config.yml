@@ -1,7 +1,6 @@
 ### GENERAL SETTINGS ####
 NOTIFY_EMAIL: 'caderanek@g.ucla.edu'
 ROI: 'data/ROI/california.shp'
-RECOVERY_MAPS_DIR: 'data/recovery_maps/'
 
 
 ### TEST SETTINGS ####
@@ -11,35 +10,52 @@ TEST_FIRE: '20140726_376750_1197830' # El Portal WUMI ID
 
 
 ### RECOVERY PARAMETERS ####
-START_YEAR: 1999 # this is when Landfire Dist starts
-END_YEAR: 2020
-ELEV_BANDS_METERS: 500
+RECOVERY_PARAMS:
+  RECOVERY_MAPS_DIR: 'data/recovery_maps/'
+  RECOVERY_PLOTS_DIR: 'results/plots/'
+  RECOVERY_CONFIGS: f'{RECOVERY_PARAMS['RECOVERY_MAPS_DIR']}submission_organizer'
+  START_YEAR: 1999                  # when Landfire disturbance starts
+  END_YEAR: 2020
+  MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
+  MIN_SEASONS: 4                    # how long until considered recovered
+  ELEV_BANDS_METERS: 500            # grouping params
+  NUM_NDVI_GROUPS: 3
+  YRS_PREFIRE_MATCHED: 5
+  GROUPING_BAND_FORMAT:
+    'pattern': "^(?P<veg_code>\\d{2})(?P<Elevation>\\d{4})(?P<prefire_median_NDVI>\\d{3})$"
+    'groups': ['veg_code', 'Elevation', 'prefire_median_NDVI']
+    'digits': 9
+  MIN_NUM_MATCHED_PIXELS: 100       # QA params
+  MIN_TEMPORAL_COVERAGE_RATIO: 0.8
+  CREATE_INTERMEDIATE_TIFS: True    # data output params
+  MAKE_PLOTS: True
+  DELETE_NDVI_SEASONAL_TIFS: False
+  LOGGING_PROCESS_CSV: f'logs/processing_progress_summary.csv'
 
 
 ### LANDSAT DOWNLOAD PARAMETERS ####
 LANDSAT:
-  NDVI_BANDS_DICT: {  # which bands to use to calculate NDVI for each LS product; in order of NIR, RED
-      4: ['SR_B4', 'SR_B3'],
-      5: ['SR_B4', 'SR_B3'],
-      7: ['SR_B4', 'SR_B3'],
-      8: ['SR_B5', 'SR_B4'],
-      9: ['SR_B5', 'SR_B4']
-  }
-  RGB_BANDS_DICT: {  # RGB bands, in order, for each LS product
-      4: ['SR_B3', 'SR_B2', 'SR_B1'],
-      5: ['SR_B3', 'SR_B2', 'SR_B1'],
-      7: ['SR_B3', 'SR_B2', 'SR_B1'],
-      8: ['SR_B4', 'SR_B3', 'SR_B2'],
-      9: ['SR_B4', 'SR_B3', 'SR_B2']
-  }
+  dir_name: 'data/Landsat/temp/' 
+  NDVI_BANDS_DICT:    # which bands to use to calculate NDVI for each LS product; in order of NIR, RED
+    4: ['SR_B4', 'SR_B3']
+    5: ['SR_B4', 'SR_B3']
+    7: ['SR_B4', 'SR_B3']
+    8: ['SR_B5', 'SR_B4']
+    9: ['SR_B5', 'SR_B4']
+
+  RGB_BANDS_DICT:     # RGB bands, in order, for each LS product
+    4: ['SR_B3', 'SR_B2', 'SR_B1']
+    5: ['SR_B3', 'SR_B2', 'SR_B1']
+    7: ['SR_B3', 'SR_B2', 'SR_B1']
+    8: ['SR_B4', 'SR_B3', 'SR_B2']
+    9: ['SR_B4', 'SR_B3', 'SR_B2']
   VALID_LAYERS: ['QA_PIXEL', 'QA_RADSTAT', 'QA_AEROSOL', 'SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5'] # Valid layers to use in processing
-  PRODUCT_LAYERS: {  # which bands to use to calculate NDVI, RGB, cloud mask for each LS product
-      'L04.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
-      'L05.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
-      'L07.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL'],
-      'L08.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL'],
-      'L09.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
-  }
+  PRODUCT_LAYERS:     # which bands to use to calculate NDVI, RGB, cloud mask for each LS product
+    'L04.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL']
+    'L05.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL']
+    'L07.002': ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'QA_PIXEL']
+    'L08.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
+    'L09.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
   DEFAULT_NODATA: -9999
   NUM_PARALLEL_WORKERS: 6 # Max parallel workers/num cores to request for data download
 
@@ -81,10 +97,10 @@ NLCD:
 
 
 WUMI_PRODUCTS:
-  data_dir: 'data/baselayers/temp/WUMI2024a/fire_maps/'
-  projection_raster: 'data/baselayers/temp/WUMI2024a/az3135011111020160516_20160502_20160603_dnbr6.tif'
-  subfires_csv_f: 'data/baselayers/temp/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires.txt'
-  mtbs_rasters_dir: 'data/baselayers/temp/mtbs_sev_rasters/'
+  data_dir: 'data/baselayers/manual_downloads/WUMI2024a/fire_maps/'
+  projection_raster: 'data/baselayers/manual_downloads/WUMI2024a/az3135011111020160516_20160502_20160603_dnbr6.tif'
+  subfires_csv_f: 'data/baselayers/manual_downloads/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires.txt'
+  mtbs_rasters_dir: 'data/baselayers/manual_downloads/mtbs_sev_rasters/'
 
 BASELAYERS:
   agdev_mask: 

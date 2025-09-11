@@ -5,14 +5,14 @@ include: 'common.smk'
 TESTING = config['TESTING']
 if TESTING:
     ROI_PATH = config['TEST_ROI']
-    DATA_PREFIX = os.path.join('data/test_data/output', os.path.splitext(os.path.basename(ROI_PATH))[0])
 else:
     ROI_PATH = config['ROI']
+DATA_PREFIX = os.path.splitext(os.path.basename(ROI_PATH))[0]
 
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
 BASELAYER_FILES = list(config['BASELAYERS'].keys())
 TOPO_LAYERS = ['Asp', 'Elev', 'Slope']
-start_year, end_year = config['START_YEAR'], config['END_YEAR']
+start_year, end_year = config['RECOVERY_PARAMS']['START_YEAR'], config['RECOVERY_PARAMS']['END_YEAR']
 YEARS_TO_PROCESS = list(range(start_year, end_year + 1))
 
 
@@ -21,7 +21,7 @@ rule get_landfire:
     output: 
         ## TEMP output of downloading initial CONUS-wide files
         # LANDFIRE
-        done_flag=get_path("data/baselayers/done/landfire_{prod}_processed.done"),
+        done_flag=get_path("logs/baselayers/done/landfire_{prod}_processed.done"),
 
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
         metadata_dir=directory(get_path('data/baselayers/downloadlogs_metadata/{prod}'))
@@ -57,11 +57,11 @@ rule get_landfire:
 
 rule make_hdist:
     input:
-        get_path("data/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
+        get_path("logs/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
 
     output:
         merged_out_path=get_path(config['BASELAYERS']['annual_dist']['fname']),
-        done_flag=get_path("data/baselayers/done/make_hdist.done")
+        done_flag=get_path("logs/baselayers/done/make_hdist.done")
 
     params:
         annual_dist_dir=get_path(config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name']),
@@ -104,12 +104,12 @@ rule make_hdist:
         
 rule make_agdevmask:
     input:
-        get_path("data/baselayers/done/download_nlcd.done")
+        get_path("logs/baselayers/done/download_nlcd.done")
 
     output: 
         # Output flag for merged agdev mask .nc
         merged_out_path=get_path(config['BASELAYERS']['agdev_mask']['fname']),
-        done_flag=get_path("data/baselayers/done/agdev_mask.done")
+        done_flag=get_path("logs/baselayers/done/agdev_mask.done")
 
     params:
         nlcd_dir=get_path(config['NLCD']['dir_name']),
@@ -142,16 +142,16 @@ rule make_agdevmask:
 
 rule make_mtbs_bundles:
     output:
-        done_flag=get_path("data/baselayers/done/mtbs_bundles.done")
+        done_flag=get_path("logs/baselayers/done/mtbs_bundles.done")
 
     params:
         wumi_subfires_csv=config['WUMI_PRODUCTS']['subfires_csv_f'],
         wumi_proj=config['WUMI_PRODUCTS']['projection_raster'],
         wumi_data_dir=config['WUMI_PRODUCTS']['data_dir'],
         mtbs_sevrasters_dir=config['WUMI_PRODUCTS']['mtbs_rasters_dir'],
-        start_year=config['START_YEAR'],
-        end_year=config['END_YEAR'],
-        output_dir=get_path(config['RECOVERY_MAPS_DIR']),
+        start_year=start_year,
+        end_year=end_year,
+        output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -184,11 +184,11 @@ rule make_mtbs_bundles:
 
 rule merge_topo:
     input:
-        expand(get_path("data/baselayers/done/landfire_{prod}_processed.done"), prod=TOPO_LAYERS)
+        expand(get_path("logs/baselayers/done/landfire_{prod}_processed.done"), prod=TOPO_LAYERS)
 
     output:
         out_f=get_path(config['BASELAYERS']['topo']['fname']),
-        done_flag=get_path("data/baselayers/done/merge_topo.done")
+        done_flag=get_path("logs/baselayers/done/merge_topo.done")
 
     params:
         elev_dir=get_path(config['LANDFIRE_PRODUCTS']['Elev']['dir_name']),
@@ -218,14 +218,14 @@ rule merge_topo:
 
 rule download_nlcd:
     output:
-        done_flag=get_path("data/baselayers/done/download_nlcd.done")
+        done_flag=get_path("logs/baselayers/done/download_nlcd.done")
 
     params:
         download_link=config['NLCD']['annual_nlcd_link'],
         out_dir=get_path(config['NLCD']['dir_name']),
         vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
-        start_year=config['START_YEAR'],
-        end_year=config['END_YEAR'],
+        start_year=start_year,
+        end_year=end_year,
         ROI=ROI_PATH,
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
@@ -253,15 +253,15 @@ rule download_nlcd:
 
 rule make_groupings:
     input:
-        get_path("data/baselayers/done/download_nlcd.done"),
-        get_path("data/baselayers/done/merge_topo.done")
+        get_path("logs/baselayers/done/download_nlcd.done"),
+        get_path("logs/baselayers/done/merge_topo.done")
 
     output:
         out_f=get_path(config['BASELAYERS']['groupings']['fname']),
-        done_flag=get_path("data/baselayers/done/make_groupings.done")
+        done_flag=get_path("logs/baselayers/done/make_groupings.done")
 
     params:
-        elev_band_m=config['ELEV_BANDS_METERS'],
+        elev_band_m=config['RECOVERY_PARAMS']['ELEV_BANDS_METERS'],
         nlcd_dir=get_path(config['NLCD']['dir_name']),
         vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
         merged_topo=get_path(config['BASELAYERS']['topo']['fname']),
