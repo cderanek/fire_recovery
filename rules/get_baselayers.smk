@@ -142,7 +142,9 @@ rule make_agdevmask:
 
 rule make_mtbs_bundles:
     output:
-        done_flag=get_path("logs/baselayers/done/mtbs_bundles.done")
+        done_flag=get_path("logs/baselayers/done/mtbs_bundles.done"),
+        # add another output for fireids list
+        allfirestxt=f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}allfilteredfires.txt'
 
     params:
         ROI=ROI_PATH,
@@ -180,7 +182,8 @@ rule make_mtbs_bundles:
              {params.start_year} \
              {params.end_year} \
              {params.output_dir} \
-             (params.wumi_summary_output_dir) \
+             {params.wumi_summary_output_dir} \
+             {output.allfirestxt} \
              {output.done_flag} \
              {resources.cpus}  > {log.stdout} 2> {log.stderr}
         """

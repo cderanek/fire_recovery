@@ -2,21 +2,25 @@
 
 # INPUTS
 CONDA_ENV=$1
-SUBFIRES_CSV=$2
-WUMI_PROJ=$3
-WUMI_DIR=$4
-MTBS_SEV_DIR=$5
-START_YR=$6
-END_YR=$7
-OUT_DIR=$8
-DONE_FLAG=$9
-N_PROCESSES=${10}
+ROI=$2
+SUBFIRES_CSV=$3
+WUMI_PROJ=$4
+WUMI_DIR=$5
+MTBS_SEV_DIR=$6
+START_YR=$7
+END_YR=$8
+OUT_DIR=$9
+WUMI_SUMMARY_DIR=${10}
+ALLFIRES_TXT=${11}
+DONE_FLAG=${12}
+N_PROCESSES=${13}
 
 . /u/local/Modules/default/init/modules.sh
 module load anaconda3
 conda activate $CONDA_ENV
 
 python workflow/get_baselayers/make_mtbs_bundles.py \
+    "$ROI" \
     "$SUBFIRES_CSV" \
     "$WUMI_PROJ" \
     "$WUMI_DIR" \
@@ -24,5 +28,7 @@ python workflow/get_baselayers/make_mtbs_bundles.py \
     "$START_YR" \
     "$END_YR" \
     "$OUT_DIR" \
+    "$WUMI_SUMMARY_DIR" \
+    "$ALLFIRES_TXT" \
     "$DONE_FLAG" \
     "$N_PROCESSES"

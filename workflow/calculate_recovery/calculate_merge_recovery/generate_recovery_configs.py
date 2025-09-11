@@ -1,3 +1,4 @@
+import json, sys
 
 '''
 needs main config for recovery params, landsat download params, wumi info
@@ -15,3 +16,9 @@ Dict with keys = fireid
         file_paths: 
 }
 '''
+
+if __name__ == '__main__':
+    print(f'Running generate_recovery_configs.py with arguments {'\n'.join(sys.argv)}\n')
+    config_json = json.loads(sys.argv[1])
+    fireslist_txt = sys.argv[2]
+    done_flag = sys.argv[3]

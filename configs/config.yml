@@ -16,21 +16,21 @@ RECOVERY_PARAMS:
   RECOVERY_CONFIGS: f'{RECOVERY_PARAMS['RECOVERY_MAPS_DIR']}submission_organizer'
   START_YEAR: 1999                  # when Landfire disturbance starts
   END_YEAR: 2020
-  MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
   MIN_SEASONS: 4                    # how long until considered recovered
   ELEV_BANDS_METERS: 500            # grouping params
   NUM_NDVI_GROUPS: 3
   YRS_PREFIRE_MATCHED: 5
-  GROUPING_BAND_FORMAT:
-    'pattern': "^(?P<veg_code>\\d{2})(?P<Elevation>\\d{4})(?P<prefire_median_NDVI>\\d{3})$"
-    'groups': ['veg_code', 'Elevation', 'prefire_median_NDVI']
-    'digits': 9
   MIN_NUM_MATCHED_PIXELS: 100       # QA params
   MIN_TEMPORAL_COVERAGE_RATIO: 0.8
   CREATE_INTERMEDIATE_TIFS: True    # data output params
   MAKE_PLOTS: True
   DELETE_NDVI_SEASONAL_TIFS: False
   LOGGING_PROCESS_CSV: f'logs/processing_progress_summary.csv'
+  MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
+  GROUPING_BAND_FORMAT:
+    'pattern': "^(?P<veg_code>\\d{2})(?P<Elevation>\\d{4})(?P<prefire_median_NDVI>\\d{3})$"
+    'groups': ['veg_code', 'Elevation', 'prefire_median_NDVI']
+    'digits': 9
 
 
 ### LANDSAT DOWNLOAD PARAMETERS ####

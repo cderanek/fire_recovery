@@ -21,11 +21,6 @@ FIRE_ID=$4
 module load anaconda3
 conda activate $CONDA_ENV_DOWNLOAD
 
-# Generate the file paths json and fire metadata json unique to this fire
-python workflow/calculate_recovery/get_landsat_seasonal/generate_recovery_configs.py \
-    $CONFIG_JSON \
-    $FIRE_ID
-
 # Download landsat data for this fire
 python workflow/calculate_recovery/get_landsat_seasonal/main_landsat_download.py \
     $CONFIG_JSON \

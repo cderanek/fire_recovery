@@ -92,7 +92,7 @@ def get_wumi_id_years(
     args = list(zip(subfires['fireid'].astype('str'), subfires['year'].astype('str')))
 
     with Pool(processes=n_processes) as pool:
-        wumi_polys = pool.map(get_wumi_polys_partial, args_list)
+        wumi_polys = pool.map(get_wumi_polys_partial, args)
     merged_wumi = gpd.concat(wumi_polys)
 
     # memory management
@@ -235,8 +235,10 @@ if __name__ == '__main__':
     start_year, end_year = int(sys.argv[6]), int(sys.argv[7]) # years range of fires to be considered for analysis
     output_dir = sys.argv[8]    # where to store the clipped sev rasters + copy of shapefiles
     wumi_summary_output_dir = sys.argv[9]
-    done_flag = sys.argv[10]
-    n_processes = int(sys.argv[11])
+    allfirestxt = sys.argv[10]
+
+    done_flag = sys.argv[11]
+    n_processes = int(sys.argv[12])
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(wumi_summary_output_dir, exist_ok=True)
@@ -245,6 +247,11 @@ if __name__ == '__main__':
     wumi_projection = rxr.open_rasterio(wumi_projection_raster).rio.crs
     fireid_years_events, total_count = get_wumi_id_years(ROI, subfires_csv, start_year, end_year, wumi_summary_output_dir, wumi_projection, n_processes)
     fireid_years_events = list(fireid_years_events)
+
+    # SAVE -- LIST OF ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS
+    with open(allfiresxtx, 'w') as f:
+        for tuple_item in tuple_list:
+            f.write('\t'.join(tuple_item) + '\n')
 
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
     make_fire_bundles_parallel(
