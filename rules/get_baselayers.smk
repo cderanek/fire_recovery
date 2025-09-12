@@ -1,5 +1,6 @@
 configfile: 'configs/config.yml'
-include: 'common.smk'
+sys.path.append('rules/')
+from common import get_path
 
 # Set paths based on testing mode
 TESTING = config['TESTING']
@@ -7,7 +8,6 @@ if TESTING:
     ROI_PATH = config['TEST_ROI']
 else:
     ROI_PATH = config['ROI']
-DATA_PREFIX = os.path.splitext(os.path.basename(ROI_PATH))[0]
 
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
 BASELAYER_FILES = list(config['BASELAYERS'].keys())
@@ -21,16 +21,16 @@ rule get_landfire:
     output: 
         ## TEMP output of downloading initial CONUS-wide files
         # LANDFIRE
-        done_flag=get_path("logs/baselayers/done/landfire_{prod}_processed.done"),
+        done_flag=get_path("logs/baselayers/done/landfire_{prod}_processed.done", ROI_PATH),
 
         ## DATA DOWNLOAD info (date downloaded, version, metadata, etc)
-        metadata_dir=directory(get_path('data/baselayers/downloadlogs_metadata/{prod}'))
+        metadata_dir=directory(get_path('data/baselayers/downloadlogs_metadata/{prod}', ROI_PATH))
 
     params:
         ROI=ROI_PATH, # Our ROI to clip to (assumed to be in CONUS)
         link=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['link'],
         checksum=lambda wildcards: config['LANDFIRE_PRODUCTS'][wildcards.prod]['checksum'],
-        dir_name=lambda wildcards: get_path(config['LANDFIRE_PRODUCTS'][wildcards.prod]['dir_name']),
+        dir_name=lambda wildcards: get_path(config['LANDFIRE_PRODUCTS'][wildcards.prod]['dir_name'], ROI_PATH),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -38,8 +38,8 @@ rule get_landfire:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/get_landfire_{prod}.log'),
-        stderr=get_path('logs/get_baselayer/get_landfire_{prod}.err')
+        stdout=get_path('logs/baselayers/get_landfire_{prod}.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/get_landfire_{prod}.err', ROI_PATH)
 
     shell:
         """
@@ -57,14 +57,14 @@ rule get_landfire:
 
 rule make_hdist:
     input:
-        get_path("logs/baselayers/done/landfire_Disturbance_processed.done"), # need to have successfully downloaded all the disturbance data
+        get_path("logs/baselayers/done/landfire_Disturbance_processed.done", ROI_PATH), # need to have successfully downloaded all the disturbance data
 
     output:
-        merged_out_path=get_path(config['BASELAYERS']['annual_dist']['fname']),
-        done_flag=get_path("logs/baselayers/done/make_hdist.done")
+        merged_out_path=get_path(config['BASELAYERS']['annual_dist']['fname'], ROI_PATH),
+        done_flag=get_path("logs/baselayers/done/make_hdist.done", ROI_PATH)
 
     params:
-        annual_dist_dir=get_path(config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name']),
+        annual_dist_dir=get_path(config['LANDFIRE_PRODUCTS']['Disturbance']['dir_name'], ROI_PATH),
         dtype=config['BASELAYERS']['annual_dist']['dtype'],
         nodataval=config['BASELAYERS']['annual_dist']['nodataval'],
         xdim=config['BASELAYERS']['annual_dist']['dims']['xdim'],
@@ -82,8 +82,8 @@ rule make_hdist:
         '../workflow/envs/get_baselayers_env.yml'
 
     log:
-        stdout=get_path('logs/get_baselayer/make_hdist.log'),
-        stderr=get_path('logs/get_baselayer/make_hdist.err')
+        stdout=get_path('logs/baselayers/make_hdist.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/make_hdist.err', ROI_PATH)
 
     shell:
         """
@@ -104,16 +104,16 @@ rule make_hdist:
         
 rule make_agdevmask:
     input:
-        get_path("logs/baselayers/done/download_nlcd.done")
+        get_path("logs/baselayers/done/download_nlcd.done", ROI_PATH)
 
     output: 
         # Output flag for merged agdev mask .nc
-        merged_out_path=get_path(config['BASELAYERS']['agdev_mask']['fname']),
-        done_flag=get_path("logs/baselayers/done/agdev_mask.done")
+        merged_out_path=get_path(config['BASELAYERS']['agdev_mask']['fname'], ROI_PATH),
+        done_flag=get_path("logs/baselayers/done/agdev_mask.done", ROI_PATH)
 
     params:
-        nlcd_dir=get_path(config['NLCD']['dir_name']),
-        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
+        nlcd_dir=get_path(config['NLCD']['dir_name'], ROI_PATH),
+        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv'], ROI_PATH),
         dtype=config['BASELAYERS']['agdev_mask']['dtype'],
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
@@ -125,8 +125,8 @@ rule make_agdevmask:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/agdev_mask.log'),
-        stderr=get_path('logs/get_baselayer/agdev_mask.err')
+        stdout=get_path('logs/baselayers/agdev_mask.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/agdev_mask.err', ROI_PATH)
 
     shell:
         """
@@ -142,9 +142,9 @@ rule make_agdevmask:
 
 rule make_mtbs_bundles:
     output:
-        done_flag=get_path("logs/baselayers/done/mtbs_bundles.done"),
+        done_flag=get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH),
         # add another output for fireids list
-        allfirestxt=f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}allfilteredfires.txt'
+        allfirestxt=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}allfilteredfires.txt', ROI_PATH)
 
     params:
         ROI=ROI_PATH,
@@ -154,9 +154,10 @@ rule make_mtbs_bundles:
         mtbs_sevrasters_dir=config['WUMI_PRODUCTS']['mtbs_rasters_dir'],
         start_year=start_year,
         end_year=end_year,
-        output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']),
-        wumi_summary_output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']),
+        output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR'], ROI_PATH),
+        wumi_summary_output_dir=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH),
         conda_env='RIO_GPD',
+        threads=6,
         email=config['NOTIFY_EMAIL']
 
     resources:
@@ -167,8 +168,8 @@ rule make_mtbs_bundles:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/mtbs_bundles.log'),
-        stderr=get_path('logs/get_baselayer/mtbs_bundles.err')
+        stdout=get_path('logs/baselayers/mtbs_bundles.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/mtbs_bundles.err', ROI_PATH)
 
     shell:
         """
@@ -185,22 +186,22 @@ rule make_mtbs_bundles:
              {params.wumi_summary_output_dir} \
              {output.allfirestxt} \
              {output.done_flag} \
-             {resources.cpus}  > {log.stdout} 2> {log.stderr}
+             {params.threads}  > {log.stdout} 2> {log.stderr}
         """
 
 
 rule merge_topo:
     input:
-        expand(get_path("logs/baselayers/done/landfire_{prod}_processed.done"), prod=TOPO_LAYERS)
+        expand(get_path("logs/baselayers/done/landfire_{prod}_processed.done", ROI_PATH), prod=TOPO_LAYERS)
 
     output:
-        out_f=get_path(config['BASELAYERS']['topo']['fname']),
-        done_flag=get_path("logs/baselayers/done/merge_topo.done")
+        out_f=get_path(config['BASELAYERS']['topo']['fname'], ROI_PATH),
+        done_flag=get_path("logs/baselayers/done/merge_topo.done", ROI_PATH)
 
     params:
-        elev_dir=get_path(config['LANDFIRE_PRODUCTS']['Elev']['dir_name']),
-        asp_dir=get_path(config['LANDFIRE_PRODUCTS']['Asp']['dir_name']),
-        slope_dir=get_path(config['LANDFIRE_PRODUCTS']['Slope']['dir_name']),
+        elev_dir=get_path(config['LANDFIRE_PRODUCTS']['Elev']['dir_name'], ROI_PATH),
+        asp_dir=get_path(config['LANDFIRE_PRODUCTS']['Asp']['dir_name'], ROI_PATH),
+        slope_dir=get_path(config['LANDFIRE_PRODUCTS']['Slope']['dir_name'], ROI_PATH),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -208,8 +209,8 @@ rule merge_topo:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/merge_topo.log'),
-        stderr=get_path('logs/get_baselayer/merge_topo.err')
+        stdout=get_path('logs/baselayers/merge_topo.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/merge_topo.err', ROI_PATH)
 
     shell:
         """
@@ -225,12 +226,12 @@ rule merge_topo:
 
 rule download_nlcd:
     output:
-        done_flag=get_path("logs/baselayers/done/download_nlcd.done")
+        done_flag=get_path("logs/baselayers/done/download_nlcd.done", ROI_PATH)
 
     params:
         download_link=config['NLCD']['annual_nlcd_link'],
-        out_dir=get_path(config['NLCD']['dir_name']),
-        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
+        out_dir=get_path(config['NLCD']['dir_name'], ROI_PATH),
+        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv'], ROI_PATH),
         start_year=start_year,
         end_year=end_year,
         ROI=ROI_PATH,
@@ -241,8 +242,8 @@ rule download_nlcd:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/download_nlcd.log'),
-        stderr=get_path('logs/get_baselayer/download_nlcd.err')
+        stdout=get_path('logs/baselayers/download_nlcd.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/download_nlcd.err', ROI_PATH)
 
     shell:
         """
@@ -260,18 +261,18 @@ rule download_nlcd:
 
 rule make_groupings:
     input:
-        get_path("logs/baselayers/done/download_nlcd.done"),
-        get_path("logs/baselayers/done/merge_topo.done")
+        get_path("logs/baselayers/done/download_nlcd.done", ROI_PATH),
+        get_path("logs/baselayers/done/merge_topo.done", ROI_PATH)
 
     output:
-        out_f=get_path(config['BASELAYERS']['groupings']['fname']),
-        done_flag=get_path("logs/baselayers/done/make_groupings.done")
+        out_f=get_path(config['BASELAYERS']['groupings']['fname'], ROI_PATH),
+        done_flag=get_path("logs/baselayers/done/make_groupings.done", ROI_PATH)
 
     params:
         elev_band_m=config['RECOVERY_PARAMS']['ELEV_BANDS_METERS'],
-        nlcd_dir=get_path(config['NLCD']['dir_name']),
-        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv']),
-        merged_topo=get_path(config['BASELAYERS']['topo']['fname']),
+        nlcd_dir=get_path(config['NLCD']['dir_name'], ROI_PATH),
+        vegcodes_csv=get_path(config['NLCD']['vegcodes_csv'], ROI_PATH),
+        merged_topo=get_path(config['BASELAYERS']['topo']['fname'], ROI_PATH),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
 
@@ -279,8 +280,8 @@ rule make_groupings:
         '../workflow/envs/get_baselayers_env.yml'
 
     log: 
-        stdout=get_path('logs/get_baselayer/make_groupings.log'),
-        stderr=get_path('logs/get_baselayer/make_groupings.err')
+        stdout=get_path('logs/baselayers/make_groupings.log', ROI_PATH),
+        stderr=get_path('logs/baselayers/make_groupings.err', ROI_PATH)
 
     shell:
         """

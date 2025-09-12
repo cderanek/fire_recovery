@@ -38,8 +38,8 @@ the severity raster and shapefiles should be called {wumi_firename}_{wumi_fireid
 def get_wumi_mtbs_poly(
     wumi_data_dir:str,
     wumi_projection: pyproj.CRS,
-    fireid: str,
-    year: str):
+    fireid_yr: tuple):
+    fireid, year = fireid_yr
     # search in wumi_data_dir/year for mtbs shapefile
     wumi_dir = os.path.join(wumi_data_dir, year, fireid)
     f = glob.glob(os.path.join(wumi_dir, '*_mtbs*.shp'))
@@ -67,33 +67,32 @@ def get_wumi_id_years(
     subfires_csv:str, 
     start_year:int, 
     end_year:int,
+    wumi_data_dir:str,
     wumi_summary_output_dir:str,
     wumi_projection: pyproj.CRS,
     n_processes:int):
 
-    # read and copy over the wumi csv used into the wumi_summary_output_dir for future reference
+    # read wumi data
     subfires = pd.read_csv(subfires_csv)
-    subprocess.run(['cp', subfires_csv, wumi_summary_output_dir])
 
     # filter to only MTBS fires in the year range
     subfires = subfires[
-        # TODO: Filter to MTBS
+        (subfires['dataset'].str.lower()=='mtbs') & 
         (subfires['year']>=start_year) & 
         (subfires['year']<=end_year)]
 
     # merge all WUMI fires within our year range into one gdf
     get_wumi_polys_partial = partial(
         get_wumi_mtbs_poly,
-        wumi_projection,
         wumi_data_dir,
-        fireid=fireid,
-        year=year
+        wumi_projection
     )
+    
     args = list(zip(subfires['fireid'].astype('str'), subfires['year'].astype('str')))
-
     with Pool(processes=n_processes) as pool:
         wumi_polys = pool.map(get_wumi_polys_partial, args)
-    merged_wumi = gpd.concat(wumi_polys)
+
+    merged_wumi = pd.concat(wumi_polys)
 
     # memory management
     del wumi_polys
@@ -110,8 +109,12 @@ def get_wumi_id_years(
     gc.collect()
 
     # filter subfires to only subfires in our clipped WUMI gdf
-    subfires = subfires[subfires['fireid'].str.isin(filtered_ids)]
-    return zip(subfires['name'].astype('str'), subfires['fireid'].astype('str'), subfires['year'].astype('int')), len(subfires)
+    subfires = subfires[subfires['fireid'].isin(filtered_ids)]
+
+    # save filtered WUMI metadata csv
+    subfires.to_csv(f'{wumi_summary_output_dir}wumi_data.csv')
+
+    return zip(subfires['name'].astype('str'), subfires['fireid'].astype('str'), subfires['year'].astype('str')), len(subfires)
 
 
 def confirm_burned(
@@ -169,7 +172,7 @@ def make_fire_spatialbundle(args):
         # copy WUMI MTBS polygon to new dir 
         # save with CRS info from provided projection
         wumi_mtbs_shp_f = os.path.join(fire_output_dir, f'{firename}_{fireid}_wumi_mtbs_poly.shp').replace('//', '/')
-        gdf = get_wumi_mtbs_poly(wumi_data_dir, wumi_projection, fireid, year)
+        gdf = get_wumi_mtbs_poly(wumi_data_dir, wumi_projection, (fireid, year))
         gdf.to_file(wumi_mtbs_shp_f)
 
         # extract sevraster for this polygon and save to {output_dir}/{firename}_{wumi_fireid}/spatialinfo/
@@ -245,12 +248,12 @@ if __name__ == '__main__':
 
     # FILTER -- LIST OF ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS
     wumi_projection = rxr.open_rasterio(wumi_projection_raster).rio.crs
-    fireid_years_events, total_count = get_wumi_id_years(ROI, subfires_csv, start_year, end_year, wumi_summary_output_dir, wumi_projection, n_processes)
+    fireid_years_events, total_count = get_wumi_id_years(ROI, subfires_csv, start_year, end_year, wumi_data_dir, wumi_summary_output_dir, wumi_projection, n_processes)
     fireid_years_events = list(fireid_years_events)
 
     # SAVE -- LIST OF ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS
-    with open(allfiresxtx, 'w') as f:
-        for tuple_item in tuple_list:
+    with open(allfirestxt, 'w') as f:
+        for tuple_item in fireid_years_events:
             f.write('\t'.join(tuple_item) + '\n')
 
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
