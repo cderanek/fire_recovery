@@ -155,7 +155,7 @@ rule make_mtbs_bundles:
         start_year=start_year,
         end_year=end_year,
         output_dir=get_path(config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR'], ROI_PATH),
-        wumi_summary_output_dir=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH),
+        wumi_summary_output_dir=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}', ROI_PATH),
         conda_env='RIO_GPD',
         threads=6,
         email=config['NOTIFY_EMAIL']

@@ -1,4 +1,4 @@
-import yaml, json, sys
+import yaml, json, sys, subprocess, os
 import pandas as pd
 import numpy as np
 from functools import partial
@@ -36,15 +36,16 @@ def create_main_config_json(config_path, out_path):
 
 def get_fire_metadata(config, ROI_PATH, fireinfo):
     return {
-        'FIRE_NAME': fireinfo['name'].values[0],
-        'FIRE_HA': fireinfo['burn_area_ha'].values[0],
-        'FIRE_DATE': np.datetime64(f'{fireinfo['year'].values[0].astype('str')}-{str.zfill(fireinfo['month'].values[0].astype('str'),2)}-{str.zfill(fireinfo['day'].values[0].astype('str'),2)}'),
-        'FIRE_YEAR': fireinfo['year'].values[0],
-        'FIRE_BOUNDARY_PATH': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{fireinfo['name'].values[0]}_{fireinfo['fireid'].values[0]}/spatialinfo/', ROI_PATH)
+        'FIRE_NAME': fireinfo['name'],
+        'FIRE_HA': fireinfo['burn_area_ha'],
+        'FIRE_DATE': f'{fireinfo['year']}-{str.zfill(str(fireinfo['month']),2)}-{str.zfill(str(fireinfo['day']),2)}',
+        'FIRE_YEAR': fireinfo['year'],
+        'FIRE_BOUNDARY_PATH': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{fireinfo['name']}_{fireinfo['fireid']}/spatialinfo/', ROI_PATH)
     }
 
+
 def get_file_paths(config, ROI_PATH, fireinfo):
-    prefix = f'{fireinfo['name'].values[0]}_{fireinfo['fireid'].values[0]}'
+    prefix = f'{fireinfo['name']}_{fireinfo['fireid']}'
     maps_fire_dir = get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/', ROI_PATH)
 
     return {
@@ -53,7 +54,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
         'OUT_MERGED_THRESHOLD_NC': f'{maps_fire_dir}{prefix}_merged_threshold_ndvi.nc',
         'OUT_SUMMARY_CSV': f'{maps_fire_dir}{prefix}_time_series_summary_df.csv',
         'RECOVERY_COUNTS_SUMMARY_CSV': f'{maps_fire_dir}{prefix}_grouping_counts_recovery_summary.csv',
-        'PLOTS_DIR': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_PLOTS_DIR']}{prefix}/', ROI_PATH)
+        'PLOTS_DIR': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_PLOTS_DIR']}{prefix}/', ROI_PATH),
         'OUT_TIFS_D': {
             'severity': (
                 f'{maps_fire_dir}{prefix}_severity.tif',
@@ -68,7 +69,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
                 f'{maps_fire_dir}{prefix}_prefire_dist_agdev.tif',
                 'int8', -1),
             'fire_recovery_time': (
-                 f'{maps_fire_dir}{prefix}_{config['MIN_SEASONS']}seasons_recovery.tif',
+                 f'{maps_fire_dir}{prefix}_{config['RECOVERY_PARAMS']['MIN_SEASONS']}seasons_recovery.tif',
                 'int32', -9999),
             'elevation': (
                  f'{maps_fire_dir}{prefix}_elevation.tif',
@@ -89,8 +90,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
     }
 
 
-def create_perfire_config_json(config_path, fireslist_txt, out_path):
-    out_data = {}
+def create_perfire_config_json(config_path, out_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
         
@@ -100,14 +100,16 @@ def create_perfire_config_json(config_path, fireslist_txt, out_path):
 
         # Get filtered wumi data path
         wumi_data_path = get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH)
-
+        wumi_data = pd.read_csv(wumi_data_path)
         # Get fire metadata, using WUMI csv
-        out_data[fireinfo['fireid'].values[0]] = {
-            {'FIRE_METADATA': get_fire_metadata(config, ROI_PATH, fireinfo),
-            'FILE_PATHS': get_file_paths(config, ROI_PATH, fireinfo)}
-            for fireinfo in wumi_data
+        out_data = {
+            fireinfo['fireid']: {
+                'FIRE_METADATA': get_fire_metadata(config, ROI_PATH, fireinfo),
+                'FILE_PATHS': get_file_paths(config, ROI_PATH, fireinfo)
+                }
+            for _, fireinfo in wumi_data.iterrows()
             }
-
+            
     with open(out_path, 'w') as f:
         json.dump(out_data, f, indent=4)
 
@@ -116,16 +118,16 @@ def create_perfire_config_json(config_path, fireslist_txt, out_path):
 if __name__ == '__main__':
     print(f'Running generate_recovery_configs.py with arguments {'\n'.join(sys.argv)}\n')
     config_path = sys.argv[1]
-    fireslist_txt = sys.argv[2]
-    main_config_out = sys.argv[3]
-    perfire_config_out = sys.argv[4]
-    done_flag = sys.argv[5]
+    main_config_out = sys.argv[2]
+    perfire_config_out = sys.argv[3]
+    done_flag = sys.argv[4]
 
     # Create main config file (across all fires)
     create_main_config_json(config_path, main_config_out)
     
     # Create per-fire file paths and fire metadata dict
-    create_perfire_config_json(config_path, fireslist_txt, perfire_config_out)
+    create_perfire_config_json(config_path, perfire_config_out)
 
     # # DONE FLAG
-    # subprocess.run(['touch', done_flag])
+    os.makedirs(done_flag, exist_ok=True)
+    subprocess.run(['touch', done_flag])

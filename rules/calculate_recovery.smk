@@ -33,7 +33,6 @@ rule make_recovery_config:
         workflow/calculate_recovery/sh_scripts/generate_configs.sh \
              {params.conda_env} \
              {params.config_path} \
-             {params.fireslist_txt} \
              {output.main_config_out} \
              {output.perfire_config_out} \
              {output.done_flag}  > {log.stdout} 2> {log.stderr}
@@ -73,6 +72,7 @@ rule make_recovery_config:
 #              {params.conda_env_download} \
 #              {params.conda_env_recovery} \
 #              {params.config_json} \
+#              {params.perfire_config_json} \
 #              {wildcards.fireid} \
 #              {output.done_flag}  > {log.stdout} 2> {log.stderr}
 #         """

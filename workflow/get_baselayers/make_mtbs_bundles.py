@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-import subprocess, os, glob, shutil, sys, gc
+import subprocess, os, glob, shutil, sys, gc, re
 import rioxarray as rxr
 import xarray as xr
 from rasterio.features import rasterize
@@ -80,6 +80,10 @@ def get_wumi_id_years(
         (subfires['dataset'].str.lower()=='mtbs') & 
         (subfires['year']>=start_year) & 
         (subfires['year']<=end_year)]
+
+    # cleanup firenames
+    subfires['name_orig'] = subfires['name']
+    subfires['name'] = subfires['name'].map(lambda name: re.sub(r'[^a-zA-Z0-9_-]', '', name))
 
     # merge all WUMI fires within our year range into one gdf
     get_wumi_polys_partial = partial(
@@ -221,7 +225,7 @@ def make_fire_bundles_parallel(
     successes = [r for r in results if r.startswith("SUCCESS")]
     errors = [r for r in results if r.startswith("ERROR")]
     
-    print(f"\nProcessing complete!")
+    print(f"\nProcessing complete:")
     print(f"Successful: {len(successes)}")
     print(f"Failed: {len(errors)} {'\n'.join(errors)}")
 
