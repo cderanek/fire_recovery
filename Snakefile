@@ -17,18 +17,17 @@ from common import get_path
 
 ### Set paths based on testing mode ###
 TESTING = config['TESTING']
-if TESTING:
-    ROI_PATH = config['TEST_ROI']
-else:
-    ROI_PATH = config['ROI']
-DATA_PREFIX = os.path.splitext(os.path.basename(ROI_PATH))[0]
+if TESTING: ROI_PATH = config['TEST_ROI']
+else: ROI_PATH = config['ROI']
+
+### Get list of fireids for our ROI ###
+FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
 
 ### Define targets for the full workflow ###
 rule all:
     input:
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH), # get baselayers
-        # get_path(ls_done_flag TBD) # get Landsat data
-        get_path('logs/calculate_recovery/done/makeconfigs.done', ROI_PATH)
+        get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH)    # calculate recovery for all fireids
 
 
 ### Download baselayers for our ROI ###

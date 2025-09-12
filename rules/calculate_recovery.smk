@@ -2,11 +2,20 @@ import json, sys
 
 configfile: 'configs/config.yml'
 sys.path.append('rules/')
-from common import get_path
+from common import *
 
 
+### Set paths based on testing mode ###
+TESTING = config['TESTING']
+if TESTING: ROI_PATH = config['TEST_ROI']
+else: ROI_PATH = config['ROI']
+
+### Get list of fireids for our ROI ###
+FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
+
+
+### RECOVERY CONFIG SETUP ###
 rule make_recovery_config:
-# before running perfire recovery, make json to hold all the recovery settings from the config.yml
     input:
        get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH)
 
@@ -39,45 +48,66 @@ rule make_recovery_config:
         """
 
 
-# rule perfire_recovery:
-#     """
-#     separate job for each fire. each fire job includes: 
-#     download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
-#     """
-#     input:
-#         fireid=expand({fireid}, fireid=FIREIDS),
-        # main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
-        # perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH),
-#         # need all baselayers in-place before we can submit the perfire recovery qsub task array
-#         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH)
+### MAKE ALL PER-FIRE RECOVERY MAPS ###
+rule allfire_recovery:
+    input:
+        expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), fireid=FIREIDS)
 
-#     params:
-#         email=config['NOTIFY_EMAIL']
+    log: 
+        stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/all_perfire_recovery.err', ROI_PATH)
 
-#     conda: 
-#         'workflow/envs/earthaccess_env.yml'
+    output:
+        done_flag=get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH)
 
-#     log: 
-#         stdout=get_path('logs/get_baselayers/perfire_recovery.log', ROI_PATH),
-#         stderr=get_path('logs/get_baselayers/perfire_recovery.err', ROI_PATH)
+    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
-#     output:
-#         filepaths_json=temp(f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}_{fireid}_filepaths.json'),
-#         fire_metadata_json=temp(f'{get_path(config['RECOVERY_PARAMS']['RECOVERY_CONFIGS'])}_{fireid}_fire_metadata.json'),
-#         done_flag=get_path(f'logs/baselayers/done/perfire_recovery_{firename}_{fireid}.done')
 
-#     shell: 
-#         """
-#         workflow/calculate_recovery/sh_scripts/calculate_recovery.sh \
-#              {params.conda_env_download} \
-#              {params.conda_env_recovery} \
-#              {params.config_json} \
-#              {params.perfire_config_json} \
-#              {wildcards.fireid} \
-#              {output.done_flag}  > {log.stdout} 2> {log.stderr}
-#         """
+rule perfire_recovery:
+    """
+    separate job for each fire. each fire job includes: 
+    download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
+    """
+    input:
+        # need all baselayers in-place before we can submit the perfire recovery qsub task array
+        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
+        # need config files with params for running download, calculate_recovery scripts
+        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
+        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH)
+        
+    params:
+        conda_env_download='EARTHACCESS',
+        conda_env_recovery='RIO_GPD',
+        email=config['NOTIFY_EMAIL']
 
-# ### Merge all recovery maps ###
+    conda: 
+        'workflow/envs/earthaccess_env.yml'
+
+    log: 
+        stdout=get_path('logs/calculate_recovery/perfire_recovery_{fireid}.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/perfire_recovery_{fireid}.err', ROI_PATH)
+
+    output:
+        done_flag=get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH)
+
+    resources:
+        cpus=4,
+        runtime=24,
+        mem_gb=35
+
+
+    shell: 
+        """
+        workflow/calculate_recovery/sh_scripts/calculate_recovery.sh \
+             {params.conda_env_download} \
+             {params.conda_env_recovery} \
+             {input.main_config_json} \
+             {input.perfire_config_json} \
+             {wildcards.fireid} \
+             {output.done_flag}  > {log.stdout} 2> {log.stderr}
+        """
+
+# ### MERGE ALL PER-FIRE RECOVERY MAPS ###
 # """
 # task array: 1 job per 100 fires. last job waits for jobs 1 to n-1 to complete, then does final merge.
 # """

@@ -2,12 +2,12 @@ configfile: 'configs/config.yml'
 sys.path.append('rules/')
 from common import get_path
 
-# Set paths based on testing mode
+
+### Set paths based on testing mode ###
 TESTING = config['TESTING']
-if TESTING:
-    ROI_PATH = config['TEST_ROI']
-else:
-    ROI_PATH = config['ROI']
+if TESTING: ROI_PATH = config['TEST_ROI']
+else: ROI_PATH = config['ROI']
+
 
 LANDFIRE_PRODUCTS = list(config['LANDFIRE_PRODUCTS'].keys())
 BASELAYER_FILES = list(config['BASELAYERS'].keys())

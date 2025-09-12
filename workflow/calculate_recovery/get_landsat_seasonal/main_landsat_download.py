@@ -1,4 +1,3 @@
-  
 import sys, os, glob, json
 import pandas as pd
 import filelock
@@ -125,7 +124,7 @@ def process_all_years(
     return results
 
 
-def report_results(results, organizer_csv):
+def report_results(results, progress_log_csv):
     # list successful/unsuccessful years downloads
     successful_years = [yr for yr, success in results.items() if success]
     failed_years = [yr for yr, success in results.items() if not success]
@@ -135,11 +134,11 @@ def report_results(results, organizer_csv):
         download_status='Failed'
     
     # update submissions organizer csv
-    lock_file = organizer_csv + '.lock'
+    lock_file = progress_log_csv + '.lock'
     lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock if necessary (other batch jobs for other fires may also be waiting to update csv)
     try:
         with lock:
-            csv = pd.read_csv(organizer_csv)
+            csv = pd.read_csv(progress_log_csv)
                
             # update row associated with just completed downloads
             mask = csv['fire_shpfile_path'] == args['fire_shp']
@@ -148,7 +147,7 @@ def report_results(results, organizer_csv):
             csv.loc[mask, 'failed_years'] = str(failed_years)
             
         # Save the updated csv
-        csv.to_csv(args['organizer_csv'], index=False)
+        csv.to_csv(args['progress_log_csv'], index=False)
         
     except filelock.Timeout:
         print("Could not acquire lock on file after waiting", flush=True)
@@ -156,22 +155,31 @@ def report_results(results, organizer_csv):
 
 
 if __name__ == "__main__":
-    print(f'Running make_agdev_mask.py with arguments:')
-    args = {
-        'fire_shp': sys.argv[1],
-        'ls_data_dir': sys.argv[2],
-        'ls_seasonal': sys.argv[3],
-        'organizer_csv': sys.argv[4],
-        'valid_layers': json.loads(sys.argv[5]),
-        'default_nodata': int(sys.argv[6]),
-        'product_layers': json.loads(sys.argv[7]),
-        'max_workers': int(sys.argv[8]),
-    }
-    if len(sys.argv) > 9: 
-        args['years_range'] = range(int(sys.argv[9]), int(sys.argv[10]))
-    else: 
-        args['years_range'] = range(1982, 2025)
+    print(f'Running make_agdev_mask.py with arguments: {'\n'.join(sys.argv)}\n')
+    main_config_path=sys.argv[1]
+    perfire_config_path=sys.argv[2]
+    fireid=sys.argv[3]
+    
+    # read in jsons
+    config = json.loads(main_config_path)
+    perfire_json = json.loads(perfire_config_path)
+    fire_metadata = perfire_json[fireid]['FIRE_METADATA']
+    file_paths = perfire_json[fireid]['FILE_PATHS']
 
+    # get relevant params
+    args = {
+        'fire_shp': fire_metadata['FIRE_BOUNDARY_PATH']
+        'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR']
+        'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR']
+        'progress_log_csv': config['RECOVERY_PARAM']['LOGGING_PROCESS_CSV']
+        'valid_layers': config['LANDSAT']['VALID_LAYERS']
+        'default_nodata': config['LANDSAT']['DEFAULT_NODATA']
+        'product_layers': config['LANDSAT']['PRODUCT_LAYERS']
+        'max_workers': config['LANDSAT']['NUM_PARALLEL_WORKERS']
+        'fire_yr': fire_metadata['FIRE_YEAR']
+        'years_range': range(fire_yr - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025)
+    }
+    
     for (key, val) in args.items():
         print(key, val, flush=True)
     
@@ -191,4 +199,4 @@ if __name__ == "__main__":
     )
 
     # Print, store results summary
-    report_results(results, args['organizer_csv'])
+    report_results(results, args['progress_log_csv'])
