@@ -49,8 +49,8 @@ def get_file_paths(config, ROI_PATH, fireinfo):
     maps_fire_dir = get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/', ROI_PATH)
 
     return {
-        'INPUT_LANDSAT_DATA_DIR': f'{config['LANDSAT']['dir_name']}unmerged_scenes/{prefix}/',
-        'INPUT_LANDSAT_SEASONAL_DIR': f'{config['LANDSAT']['dir_name']}seasonal/{prefix}/',
+        'INPUT_LANDSAT_DATA_DIR': get_path(f'{config['LANDSAT']['dir_name']}unmerged_scenes/{prefix}/'),
+        'INPUT_LANDSAT_SEASONAL_DIR': get_path(f'{config['LANDSAT']['dir_name']}seasonal/{prefix}/'),
         'OUT_MAPS_DATA_DIR_PATH': maps_fire_dir,
         'OUT_MERGED_NDVI_NC': f'{maps_fire_dir}{prefix}_merged_ndvi.nc',
         'OUT_MERGED_THRESHOLD_NC': f'{maps_fire_dir}{prefix}_merged_threshold_ndvi.nc',

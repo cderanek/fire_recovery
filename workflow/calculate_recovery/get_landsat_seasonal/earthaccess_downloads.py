@@ -5,7 +5,7 @@ USGS EROS tutorial:
 https://github.com/nasa/AppEEARS-Data-Resources
 """
 
-import sys, os, re, time requests
+import sys, os, re, time, requests
 import earthaccess
 import geopandas as gpd
 import numpy as np

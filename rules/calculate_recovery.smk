@@ -81,7 +81,7 @@ rule perfire_recovery:
         email=config['NOTIFY_EMAIL']
 
     conda: 
-        'workflow/envs/earthaccess_env.yml'
+        '../workflow/envs/earthaccess_env.yml'
 
     log: 
         stdout=get_path('logs/calculate_recovery/perfire_recovery_{fireid}.log', ROI_PATH),
@@ -91,7 +91,7 @@ rule perfire_recovery:
         done_flag=get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH)
 
     resources:
-        cpus=4,
+        cpus=1,#4,
         runtime=24,
         mem_gb=35
 

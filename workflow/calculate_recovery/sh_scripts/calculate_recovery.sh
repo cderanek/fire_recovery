@@ -1,14 +1,5 @@
 #!/bin/bash
 
-## TODO: How to update profiles/age/config.yaml to imitate this section of original .sh script? 
-## this is handled with the wildcards in the snakefile
-"""
-#$ -t 1-923                       # task IDs
-#$ -tc 5                       # maximum concurrent jobs
-# error = Merged with joblog
-#$ -o joblog.$JOB_ID.$TASK_ID
-"""
-
 # INPUTS
 CONDA_ENV_DOWNLOAD=$1
 CONDA_ENV_RECOVERY=$2

@@ -11,8 +11,8 @@ NumericType = Union[int, float]
 RangeType = Tuple[NumericType, NumericType]
 
 # helper fns
-sys.path.append("../utils/")
-from geo_utils import export_to_tiff, reproj_align_rasters
+sys.path.append("workflow/utils/") 
+from geo_utils import export_to_tiff, reproj_align_rasters, buffer_firepoly
 
 
 #### Scene download organizing helper function ####
@@ -140,7 +140,7 @@ def qa_mask(
 def create_masked_landsat(
     ndvi_rxr: xr.DataArray,
     qa_pixel_path: str,
-    nodata: NumericType=DEFAULT_NODATA,
+    nodata: NumericType,
     allowable_val_range: RangeType = (0.2,1)
     ) -> xr.DataArray:
     """
@@ -174,7 +174,7 @@ def create_masked_landsat(
 #### Create images for a single date ####
 def calc_ndvi_rxr(
     landsat_bands_paths_df: pd.DataFrame, 
-    NODATA: float = DEFAULT_NODATA
+    NODATA: float
     ) -> xr.DataArray:
     """
     Calculate NDVI from Landsat bands, return rxr object with NDVI band for a single date.
@@ -247,7 +247,7 @@ def calc_ndvi_rxr(
 
 def calc_rgb_rxr(
     landsat_bands_paths_df: pd.DataFrame, 
-    NODATA: float = DEFAULT_NODATA
+    NODATA: float
     ) -> tuple[xr.DataArray, List[xr.DataArray]]:
     """
     Stack separate Landsat RGB tifs into a single RGB rxr object for a single date.
@@ -315,7 +315,7 @@ def calc_rgb_rxr(
 #### Merge scenes across dates ####
 def process_each_scene_ndvi(
     group: pd.DataFrame, 
-    nodata: float = DEFAULT_NODATA, 
+    nodata: float, 
     make_rgb: bool = False, 
     make_daily_ndvi: bool = False
     ) -> List[np.ndarray]:
@@ -374,8 +374,8 @@ def mosaic_export_from_ndvi_list(
     year: int, 
     season: int, 
     output_dir: str, 
-    file_suffix: str = '_mosaic.tif',
-    nodata: float = DEFAULT_NODATA
+    file_suffix: str,
+    nodata: float
     ) -> None:
     """
     Mosaic NDVI into single scene, using median NDVI for each pixel over all provided scenes, and export to GeoTIFF.
@@ -418,7 +418,7 @@ def mosaic_ndvi_timeseries(
     LS_DATA_DIR: str, 
     VALID_LAYERS: List[str], 
     LS_OUT_DIR: str,
-    NODATA: float = DEFAULT_NODATA, 
+    NODATA: float, 
     MAKE_RGB: bool = False, 
     MAKE_DAILY_NDVI: bool = False, 
     DELETE_ORIG: bool = False

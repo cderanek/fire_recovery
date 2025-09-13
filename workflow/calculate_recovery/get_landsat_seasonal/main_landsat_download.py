@@ -8,11 +8,10 @@ from typing import Tuple, Union
 NumericType = Union[int, float]
 RangeType = Tuple[NumericType, NumericType]    
 
-sys.path.append("../utils")
-from geo_utils import buffer_firepoly
+sys.path.append("workflow/utils/") 
 from earthaccess_downloads import download_landsat_data
-from merge_process_landsat_scenes import mosaic_ndvi_timeseries
-
+from merge_process_scenes import mosaic_ndvi_timeseries
+from geo_utils import buffer_firepoly
 
 
 ### Helper functions to process individual years, organize all years downloads, report results ###
@@ -155,29 +154,31 @@ def report_results(results, progress_log_csv):
 
 
 if __name__ == "__main__":
-    print(f'Running make_agdev_mask.py with arguments: {'\n'.join(sys.argv)}\n')
+    # print(f'Running main_landsat_download.py with arguments: {"\n".join(sys.argv)}\n')
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid=sys.argv[3]
     
     # read in jsons
-    config = json.loads(main_config_path)
-    perfire_json = json.loads(perfire_config_path)
+    with open(main_config_path, 'r') as f:
+        config = json.load(f)
+    with open(perfire_config_path, 'r') as f:
+        perfire_json = json.load(f)
     fire_metadata = perfire_json[fireid]['FIRE_METADATA']
     file_paths = perfire_json[fireid]['FILE_PATHS']
 
     # get relevant params
     args = {
-        'fire_shp': fire_metadata['FIRE_BOUNDARY_PATH']
-        'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR']
-        'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR']
-        'progress_log_csv': config['RECOVERY_PARAM']['LOGGING_PROCESS_CSV']
-        'valid_layers': config['LANDSAT']['VALID_LAYERS']
-        'default_nodata': config['LANDSAT']['DEFAULT_NODATA']
-        'product_layers': config['LANDSAT']['PRODUCT_LAYERS']
-        'max_workers': config['LANDSAT']['NUM_PARALLEL_WORKERS']
-        'fire_yr': fire_metadata['FIRE_YEAR']
-        'years_range': range(fire_yr - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025)
+        'fire_shp': glob.glob(f'{fire_metadata['FIRE_BOUNDARY_PATH']}*wumi_mtbs_poly.shp')[0],
+        'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR'],
+        'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR'],
+        'progress_log_csv': config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'],
+        'valid_layers': config['LANDSAT']['VALID_LAYERS'],
+        'default_nodata': config['LANDSAT']['DEFAULT_NODATA'],
+        'product_layers': config['LANDSAT']['PRODUCT_LAYERS'],
+        'max_workers': config['LANDSAT']['NUM_PARALLEL_WORKERS'],
+        'fire_yr': fire_metadata['FIRE_YEAR'],
+        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025)
     }
     
     for (key, val) in args.items():
@@ -195,7 +196,7 @@ if __name__ == "__main__":
         ls_seasonal_dir=args['ls_seasonal'],
         default_nodata=args['default_nodata'],
         product_layers=args['product_layers'],
-        max_workers=args['NUM_PARALLEL_WORKERS']
+        max_workers=args['max_workers']
     )
 
     # Print, store results summary
