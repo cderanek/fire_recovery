@@ -242,7 +242,7 @@ if __name__ == '__main__':
     start_year, end_year = int(sys.argv[6]), int(sys.argv[7]) # years range of fires to be considered for analysis
     output_dir = sys.argv[8]    # where to store the clipped sev rasters + copy of shapefiles
     wumi_summary_output_dir = sys.argv[9]
-    allfirestxt = sys.argv[10]
+    progress_log = sys.argv[10]
 
     done_flag = sys.argv[11]
     n_processes = int(sys.argv[12])
@@ -255,10 +255,11 @@ if __name__ == '__main__':
     fireid_years_events, total_count = get_wumi_id_years(ROI, subfires_csv, start_year, end_year, wumi_data_dir, wumi_summary_output_dir, wumi_projection, n_processes)
     fireid_years_events = list(fireid_years_events)
 
-    # SAVE -- LIST OF ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS
-    with open(allfirestxt, 'w') as f:
-        for tuple_item in fireid_years_events:
-            f.write('\t'.join(tuple_item) + '\n')
+    # SAVE -- CREATE CSV ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS, CREATE COLS FOR LOGGING DOWNLOAD/RECOVERY
+    log_df = pd.DataFrame(fireid_years_events, columns=['name', 'fireid', 'year'])
+    for c in ['download_status', 'successful_years', 'failed_years', 'recovery_status']:
+        log_df[c] = None
+    log_df.to_csv(progress_log)
 
     # CREATE SPATIAL INFO BUNDLE FOR EACH FIRE TO PROCESS
     make_fire_bundles_parallel(

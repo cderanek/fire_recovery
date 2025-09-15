@@ -26,7 +26,6 @@ rule make_recovery_config:
         
     params:
         conda_env='RIO_GPD',
-        fireslist_txt=get_path(f'{config["RECOVERY_PARAMS"]["RECOVERY_CONFIGS"]}allfilteredfires.txt', ROI_PATH),
         config_path='configs/config.yml',
         email=config['NOTIFY_EMAIL']
 

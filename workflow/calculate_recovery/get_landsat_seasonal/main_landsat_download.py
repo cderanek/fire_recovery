@@ -22,7 +22,8 @@ def process_year(
     valid_layers: list,
     ls_seasonal_dir: str,
     default_nodata: NumericType, 
-    product_layers: dict
+    product_layers: dict,
+    delete_orig: bool = False
     ) -> bool:
     """
     Download/mosaic/QA mask 1 year of LS data for given fire poly. 
@@ -46,7 +47,7 @@ def process_year(
                 
                 mosaic_ndvi_timeseries(
                     year_out_dir, valid_layers, ls_seasonal_dir, NODATA=default_nodata, 
-                    MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=True
+                    MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=delete_orig
                 )
                 return True
                 
@@ -64,7 +65,7 @@ def process_year(
                     
                     mosaic_ndvi_timeseries(
                         year_out_dir, valid_layers, ls_seasonal_dir, NODATA=default_nodata, 
-                        MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=False
+                        MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=delete_orig
                     )
                     
                     return True
@@ -88,7 +89,8 @@ def process_all_years(
     ls_seasonal_dir: str,
     default_nodata: NumericType, 
     product_layers: dict,
-    max_workers: int = 4
+    max_workers: int = 4,
+    delete_orig: bool = False
     ) -> dict:
     
     # set up partial (process_year is only param that changes for each year)
@@ -99,7 +101,8 @@ def process_all_years(
         valid_layers=valid_layers,
         ls_seasonal_dir=ls_seasonal_dir,
         default_nodata=default_nodata,
-        product_layers=product_layers
+        product_layers=product_layers,
+        delete_orig=delete_orig
     )
     
     # store results summary in dict
@@ -123,7 +126,7 @@ def process_all_years(
     return results
 
 
-def report_results(results, progress_log_csv):
+def report_results(results, args):
     # list successful/unsuccessful years downloads
     successful_years = [yr for yr, success in results.items() if success]
     failed_years = [yr for yr, success in results.items() if not success]
@@ -133,14 +136,14 @@ def report_results(results, progress_log_csv):
         download_status='Failed'
     
     # update submissions organizer csv
-    lock_file = progress_log_csv + '.lock'
+    lock_file = args['progress_log_csv'] + '.lock'
     lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock if necessary (other batch jobs for other fires may also be waiting to update csv)
     try:
         with lock:
-            csv = pd.read_csv(progress_log_csv)
+            csv = pd.read_csv(args['progress_log_csv'])
                
             # update row associated with just completed downloads
-            mask = csv['fire_shpfile_path'] == args['fire_shp']
+            mask = csv['fireid'] == args['fireid']
             csv.loc[mask, 'download_status'] = download_status
             csv.loc[mask, 'successful_years'] = str(successful_years)
             csv.loc[mask, 'failed_years'] = str(failed_years)
@@ -154,7 +157,7 @@ def report_results(results, progress_log_csv):
 
 
 if __name__ == "__main__":
-    # print(f'Running main_landsat_download.py with arguments: {"\n".join(sys.argv)}\n')
+    print(f'Running main_landsat_download.py with arguments {'\n'.join(sys.argv)}\n')
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid=sys.argv[3]
@@ -168,7 +171,13 @@ if __name__ == "__main__":
     file_paths = perfire_json[fireid]['FILE_PATHS']
 
     # get relevant params
+    '''
+    CREATE_INTERMEDIATE_TIFS: True    # data output params
+  MAKE_PLOTS: True
+  DELETE_NDVI_SEASONAL_TIFS: False
+    '''
     args = {
+        'fireid': fireid,
         'fire_shp': glob.glob(f'{fire_metadata['FIRE_BOUNDARY_PATH']}*wumi_mtbs_poly.shp')[0],
         'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR'],
         'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR'],
@@ -178,7 +187,8 @@ if __name__ == "__main__":
         'product_layers': config['LANDSAT']['PRODUCT_LAYERS'],
         'max_workers': config['LANDSAT']['NUM_PARALLEL_WORKERS'],
         'fire_yr': fire_metadata['FIRE_YEAR'],
-        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025)
+        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025),
+        'delete_orig_tifs': config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS']
     }
     
     for (key, val) in args.items():
@@ -196,8 +206,9 @@ if __name__ == "__main__":
         ls_seasonal_dir=args['ls_seasonal'],
         default_nodata=args['default_nodata'],
         product_layers=args['product_layers'],
-        max_workers=args['max_workers']
+        max_workers=args['max_workers'],
+        delete_orig=args['delete_orig_tifs']
     )
 
     # Print, store results summary
-    report_results(results, args['progress_log_csv'])
+    report_results(results, args)

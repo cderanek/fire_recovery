@@ -485,8 +485,9 @@ def mosaic_ndvi_timeseries(
     
     # Optionally delete original directory
     if DELETE_ORIG:
-        print(f'DELETING DIRECTORY: {LS_DATA_DIR}')
+        print(f'DELETING DIRECTORY: {LS_DATA_DIR}', flush=True)
         dir_name = LS_DATA_DIR.split('/')[-1]
-        if 'LS_01-01-' in dir_name and '_burn_bndy_bufferedshp' in dir_name:
-            os.system(f'rm {LS_DATA_DIR}/*') # some restrictions on what can be deleted to avoid massig unintendeted deletions
+        if 'LS_01-01-' in dir_name and '_wumi_mtbs_poly_bufferedshp' in dir_name:
+            os.system(f'rm {LS_DATA_DIR}/*') # some restrictions on what can be deleted to avoid unintendeted deletions
             os.system(f'rm -r {LS_DATA_DIR}/')
+            print(f'Deleted {LS_DATA_DIR}', flush=True)

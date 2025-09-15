@@ -191,7 +191,7 @@ def ping_appears(task_id, head, max_retries=30):
             
         except Exception as e:
             consecutive_failures+=1
-            print(f'Request in ping_appears failed {consecutive_failures}/{max_retries} times. Error: {e}', flush=True)
+            print(f'Request {task_id} in ping_appears failed {consecutive_failures}/{max_retries} times. Error: {e}', flush=True)
             
             if consecutive_failures >= max_retries: 
                 print(f'Request failed {consecutive_failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
@@ -206,8 +206,8 @@ def ping_appears(task_id, head, max_retries=30):
 def download_landsat_bundle(bundle, task_id, head, dest_dir):
     try:
         # Fill dictionary with file_id as keys and file_name as values
-        files = {files[f['file_id']]: f['file_name'] for f in bundle['files']}
-            
+        files = {f['file_id']: f['file_name'] for f in bundle['files']}
+        
         # Iterate over all files in bundle, downloading all tif & nc files
         for f in files:
             if ('tif' in files[f]) or ('nc' in files[f]):
