@@ -1,6 +1,10 @@
 import sys, filelock, glob, json
 import pandas as pd
 
+from data_merger import create_fire_datacube
+from qa_checks import temporal_coverage_check
+from recovery_calculator import calculate_ndvi_thresholds, calculate_recovery_time, single_fire_recoverytime_summary
+
 
 if __name__ == '__main__':
     print(f'Running main_fire_recovery.py with arguments {'\n'.join(sys.argv)}\n')

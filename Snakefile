@@ -2,7 +2,7 @@ import os, sys
 
 configfile: 'configs/config.yml'
 include: 'rules/get_baselayers.smk'
-# include: 'rules/calculate_recovery.smk'
+include: 'rules/calculate_recovery.smk'
 sys.path.append('rules/')
 from common import get_path
 
@@ -21,13 +21,13 @@ if TESTING: ROI_PATH = config['TEST_ROI']
 else: ROI_PATH = config['ROI']
 
 ### Get list of fireids for our ROI ###
-# FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
+FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
 
 ### Define targets for the full workflow ###
 rule all:
     input:
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH), # get baselayers
-        # get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH)    # calculate recovery for all fireids
+        get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH)    # calculate recovery for all fireids
 
 
 ### Download baselayers for our ROI ###
