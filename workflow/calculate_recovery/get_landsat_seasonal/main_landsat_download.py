@@ -23,7 +23,8 @@ def process_year(
     ls_seasonal_dir: str,
     default_nodata: NumericType, 
     product_layers: dict,
-    delete_orig: bool = False
+    NDVI_BANDS_DICT: dict,
+    RGB_BANDS_DICT: dict
     ) -> bool:
     """
     Download/mosaic/QA mask 1 year of LS data for given fire poly. 
@@ -47,7 +48,8 @@ def process_year(
                 
                 mosaic_ndvi_timeseries(
                     year_out_dir, valid_layers, ls_seasonal_dir, NODATA=default_nodata, 
-                    MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=delete_orig
+                    NDVI_BANDS_DICT=NDVI_BANDS_DICT, RGB_BANDS_DICT=RGB_BANDS_DICT,
+                    MAKE_RGB=False, MAKE_DAILY_NDVI=False, 
                 )
                 return True
                 
@@ -65,7 +67,8 @@ def process_year(
                     
                     mosaic_ndvi_timeseries(
                         year_out_dir, valid_layers, ls_seasonal_dir, NODATA=default_nodata, 
-                        MAKE_RGB=False, MAKE_DAILY_NDVI=False, DELETE_ORIG=delete_orig
+                        NDVI_BANDS_DICT=NDVI_BANDS_DICT, RGB_BANDS_DICT=RGB_BANDS_DICT,
+                        MAKE_RGB=False, MAKE_DAILY_NDVI=False, 
                     )
                     
                     return True
@@ -89,8 +92,9 @@ def process_all_years(
     ls_seasonal_dir: str,
     default_nodata: NumericType, 
     product_layers: dict,
+    NDVI_BANDS_DICT: dict,
+    RGB_BANDS_DICT: dict,
     max_workers: int = 4,
-    delete_orig: bool = False
     ) -> dict:
     
     # set up partial (process_year is only param that changes for each year)
@@ -102,7 +106,8 @@ def process_all_years(
         ls_seasonal_dir=ls_seasonal_dir,
         default_nodata=default_nodata,
         product_layers=product_layers,
-        delete_orig=delete_orig
+        NDVI_BANDS_DICT=NDVI_BANDS_DICT,
+        RGB_BANDS_DICT=RGB_BANDS_DICT
     )
     
     # store results summary in dict
@@ -171,11 +176,6 @@ if __name__ == "__main__":
     file_paths = perfire_json[fireid]['FILE_PATHS']
 
     # get relevant params
-    '''
-    CREATE_INTERMEDIATE_TIFS: True    # data output params
-  MAKE_PLOTS: True
-  DELETE_NDVI_SEASONAL_TIFS: False
-    '''
     args = {
         'fireid': fireid,
         'fire_shp': glob.glob(f'{fire_metadata['FIRE_BOUNDARY_PATH']}*wumi_mtbs_poly.shp')[0],
@@ -188,7 +188,8 @@ if __name__ == "__main__":
         'max_workers': config['LANDSAT']['NUM_PARALLEL_WORKERS'],
         'fire_yr': fire_metadata['FIRE_YEAR'],
         'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025),
-        'delete_orig_tifs': config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS']
+        'NDVI_BANDS_DICT': config['LANDSAT']['NDVI_BANDS_DICT'],
+        'RGB_BANDS_DICT': config['LANDSAT']['RGB_BANDS_DICT']
     }
     
     for (key, val) in args.items():
@@ -206,8 +207,9 @@ if __name__ == "__main__":
         ls_seasonal_dir=args['ls_seasonal'],
         default_nodata=args['default_nodata'],
         product_layers=args['product_layers'],
-        max_workers=args['max_workers'],
-        delete_orig=args['delete_orig_tifs']
+        NDVI_BANDS_DICT=args['NDVI_BANDS_DICT'],
+        RGB_BANDS_DICT=args['RGB_BANDS_DICT'],
+        max_workers=args['max_workers']
     )
 
     # Print, store results summary

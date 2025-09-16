@@ -13,6 +13,57 @@ snakemake --lint
 
 snakemake --dry-run
 snakemake -c 1
+
+qrsh -l h_data=50G
+cd /u/project/eordway/shared/surp_cd/fire_recovery
+conda activate EARTHACCESS
+python
+
+import sys
+
+sys.path.append('workflow/calculate_recovery/get_landsat_seasonal')
+
+from merge_process_scenes import mosaic_ndvi_timeseries
+
+NDVI_BANDS_DICT={"4": ["SR_B4", "SR_B3"], "5": ["SR_B4","SR_B3"], "7": ["SR_B4","SR_B3"], "8": ["SR_B5", "SR_B4"],"9": ["SR_B5","SR_B4"]}
+
+RGB_BANDS_DICT={
+            "4": [
+                "SR_B3",
+                "SR_B2",
+                "SR_B1"
+            ],
+            "5": [
+                "SR_B3",
+                "SR_B2",
+                "SR_B1"
+            ],
+            "7": [
+                "SR_B3",
+                "SR_B2",
+                "SR_B1"
+            ],
+            "8": [
+                "SR_B4",
+                "SR_B3",
+                "SR_B2"
+            ],
+            "9": [
+                "SR_B4",
+                "SR_B3",
+                "SR_B2"
+            ]
+        }
+
+LS_DATA_DIR='/u/project/eordway/shared/surp_cd/fire_recovery/data/shulightning_deerlick_ROI/Landsat/temp/unmerged_scenes/GULCH_20080907_403800_1229460/LS_01-01-2006_12-31-2006_GULCH_20080907_403800_1229460_wumi_mtbs_poly_bufferedshp'
+
+VALID_LAYERS=["QA_PIXEL", "QA_RADSTAT", "QA_AEROSOL", "SR_B1", "SR_B2", "SR_B3", "SR_B4", "SR_B5"]
+
+LS_OUT_DIR='/u/project/eordway/shared/surp_cd/fire_recovery/data/shulightning_deerlick_ROI/Landsat/temp/seasonal/GULCH_20080907_403800_1229460'
+
+mosaic_ndvi_timeseries(LS_DATA_DIR, VALID_LAYERS, LS_OUT_DIR, NODATA=-9999, MAKE_RGB = True, MAKE_DAILY_NDVI = False, NDVI_BANDS_DICT=NDVI_BANDS_DICT, RGB_BANDS_DICT=RGB_BANDS_DICT)
+
+
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
 snakemake --dag | dot -Tpng > dag.png
 

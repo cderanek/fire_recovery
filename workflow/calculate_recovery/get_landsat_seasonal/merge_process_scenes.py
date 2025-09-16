@@ -4,6 +4,7 @@ import pandas as pd
 import xarray as xr
 import rioxarray as rxr
 import rasterio as rio
+import datetime
 
 # typing
 from typing import List, Tuple, Union
@@ -13,7 +14,7 @@ RangeType = Tuple[NumericType, NumericType]
 # helper fns
 sys.path.append("workflow/utils/") 
 from geo_utils import export_to_tiff, reproj_align_rasters, buffer_firepoly
-
+from file_utils import get_prod_doy_tile
 
 #### Scene download organizing helper function ####
 def makeDF_uniqueIDs(
@@ -54,12 +55,15 @@ def makeDF_uniqueIDs(
         )
     
     all_ids_df['ndvi_out_path'] = all_ids_df['uid'].apply(
-        lambda uid: LS_OUT_DIR + uid.strip('.tif') + '_ndvi_masked.tif'
+        lambda uid: os.path.join(LS_OUT_DIR, 'daily_ndvi', uid.replace('.tif', '_ndvi_masked.tif'))
         )
     all_ids_df['rgb_out_path'] = all_ids_df['uid'].apply(
-        lambda uid: LS_OUT_DIR + uid.strip('.tif') + '_rgb.tif'
+        lambda uid: os.path.join(LS_OUT_DIR, 'RGB', uid.replace('.tif', '_rgb.tif'))
         )
-    
+
+    os.makedirs(os.path.join(LS_OUT_DIR, 'RGB'), exist_ok=True)
+    os.makedirs(os.path.join(LS_OUT_DIR, 'daily_ndvi'), exist_ok=True)
+
     all_ids_df.to_csv(f'{LS_DATA_DIR}_summary.csv')
     
     return all_ids_df
@@ -174,7 +178,8 @@ def create_masked_landsat(
 #### Create images for a single date ####
 def calc_ndvi_rxr(
     landsat_bands_paths_df: pd.DataFrame, 
-    NODATA: float
+    NODATA: float,
+    NDVI_BANDS_DICT: dict
     ) -> xr.DataArray:
     """
     Calculate NDVI from Landsat bands, return rxr object with NDVI band for a single date.
@@ -247,7 +252,8 @@ def calc_ndvi_rxr(
 
 def calc_rgb_rxr(
     landsat_bands_paths_df: pd.DataFrame, 
-    NODATA: float
+    NODATA: float,
+    RGB_BANDS_DICT: dict
     ) -> tuple[xr.DataArray, List[xr.DataArray]]:
     """
     Stack separate Landsat RGB tifs into a single RGB rxr object for a single date.
@@ -316,6 +322,8 @@ def calc_rgb_rxr(
 def process_each_scene_ndvi(
     group: pd.DataFrame, 
     nodata: float, 
+    NDVI_BANDS_DICT: dict,
+    RGB_BANDS_DICT: dict,
     make_rgb: bool = False, 
     make_daily_ndvi: bool = False
     ) -> List[np.ndarray]:
@@ -342,15 +350,17 @@ def process_each_scene_ndvi(
     
     for uid in np.unique(group['uid']):
         # Calculate NDVI
-        ndvi = calc_ndvi_rxr(group[group['uid'] == uid], nodata)
+        ndvi = calc_ndvi_rxr(group[group['uid'] == uid], nodata, NDVI_BANDS_DICT)
         
         # Optionally make RGB image
         if make_rgb:
-            rgb, _ = calc_rgb_rxr(group[group['uid'] == uid], nodata)
+            rgb, _ = calc_rgb_rxr(group[group['uid'] == uid], nodata, RGB_BANDS_DICT)
             rgb_out_path = group[group['uid'] == uid]['rgb_out_path'].values[0]
             export_to_tiff(
                 rgb, 
-                rgb_out_path
+                rgb_out_path,
+                dtype_out='float32',
+                nodata=nodata
             )
         
         # Apply QA mask to NDVI
@@ -364,7 +374,7 @@ def process_each_scene_ndvi(
         # Optionally make daily NDVI
         if make_daily_ndvi:
             ndvi_out_path = group[group['uid'] == uid]['ndvi_out_path'].values[0]
-            export_to_tiff(masked, ndvi_out_path, nodata)
+            export_to_tiff(masked, ndvi_out_path, dtype_out='float32', nodata=nodata)
     
     return allNDVIs
 
@@ -411,7 +421,7 @@ def mosaic_export_from_ndvi_list(
         output_dir, 
         f"{year}{season:02d}{file_suffix}"
     )
-    export_to_tiff(merged_ndvi, out_merged_seasonal_path, dtype_out='float32', NODATA=nodata)
+    export_to_tiff(merged_ndvi, out_merged_seasonal_path, dtype_out='float32', nodata=nodata)
 
 
 def mosaic_ndvi_timeseries(
@@ -419,9 +429,10 @@ def mosaic_ndvi_timeseries(
     VALID_LAYERS: List[str], 
     LS_OUT_DIR: str,
     NODATA: float, 
-    MAKE_RGB: bool = False, 
-    MAKE_DAILY_NDVI: bool = False, 
-    DELETE_ORIG: bool = False
+    NDVI_BANDS_DICT: dict = {},
+    RGB_BANDS_DICT: dict = {},
+    MAKE_RGB: bool = False,
+    MAKE_DAILY_NDVI: bool = False,
     ) -> None:
     """
     Merge Landsat scenes across dates, creating seasonal NDVI composites.
@@ -442,28 +453,35 @@ def mosaic_ndvi_timeseries(
         Create RGB images
     MAKE_DAILY_NDVI : bool, optional
         Export daily NDVI images
-    DELETE_ORIG : bool, optional
-        Delete original input directory
     """
-    # Set aggregation time
+    # Set suffix for tif files
     file_suffix = '_season_mosaiced.tif'
     
     # Create output directory
     os.makedirs(LS_OUT_DIR, exist_ok=True)
+
+    # Make sure RGB, NDVI dicts are formatted correctly
+    NDVI_BANDS_DICT = {int(key): val for key, val in NDVI_BANDS_DICT.items()}
+    RGB_BANDS_DICT = {int(key): val for key, val in RGB_BANDS_DICT.items()}
     
     # Organize Landsat files in input directory by unique scene IDs
     all_idsDF = makeDF_uniqueIDs(LS_DATA_DIR, VALID_LAYERS, LS_OUT_DIR)
+    print(all_idsDF)
     
     # Set up seasonal info
     # OND=Q4=[10,11, 12]; JFM=Q1=[1,2, 3], AMJ=Q2=[4,5,6], JAS=Q3=[7,8,9]
     all_idsDF['season'] = all_idsDF['month'].apply(lambda x: ((x-1)//3) + 1)
     
     # Process scenes by season and year
-    for (year, time_period), group in all_idsDF.groupby(['year']):
+    for (year, time_period), group in all_idsDF.groupby(['year', 'season']):
+        print(year, time_period)
+        print(group)
         # Process daily NDVI scenes, get list of NDVI scenes for this time period
         allNDVIs = process_each_scene_ndvi(
             group, 
-            nodata=NODATA, 
+            nodata=NODATA,
+            NDVI_BANDS_DICT=NDVI_BANDS_DICT,
+            RGB_BANDS_DICT=RGB_BANDS_DICT,
             make_rgb=MAKE_RGB, 
             make_daily_ndvi=MAKE_DAILY_NDVI
         )
@@ -482,12 +500,3 @@ def mosaic_ndvi_timeseries(
             file_suffix,
             NODATA
         )
-    
-    # Optionally delete original directory
-    if DELETE_ORIG:
-        print(f'DELETING DIRECTORY: {LS_DATA_DIR}', flush=True)
-        dir_name = LS_DATA_DIR.split('/')[-1]
-        if 'LS_01-01-' in dir_name and '_wumi_mtbs_poly_bufferedshp' in dir_name:
-            os.system(f'rm {LS_DATA_DIR}/*') # some restrictions on what can be deleted to avoid unintendeted deletions
-            os.system(f'rm -r {LS_DATA_DIR}/')
-            print(f'Deleted {LS_DATA_DIR}', flush=True)

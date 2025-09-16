@@ -257,7 +257,7 @@ if __name__ == '__main__':
 
     # SAVE -- CREATE CSV ALL MTBS SUBFIRES IN ROI FOR DESIRED YEARS, CREATE COLS FOR LOGGING DOWNLOAD/RECOVERY
     log_df = pd.DataFrame(fireid_years_events, columns=['name', 'fireid', 'year'])
-    for c in ['download_status', 'successful_years', 'failed_years', 'recovery_status']:
+    for c in ['download_status', 'successful_years', 'failed_years', 'recovery_complete']:
         log_df[c] = None
     log_df.to_csv(progress_log)
 
