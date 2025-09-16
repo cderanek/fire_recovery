@@ -1,4 +1,4 @@
-import yaml, json, sys, subprocess, os
+import yaml, json, sys, subprocess, os, glob
 import pandas as pd
 import numpy as np
 from functools import partial
@@ -29,6 +29,7 @@ def create_main_config_json(config_path, out_path):
         config_data = yaml.safe_load(f)
         out_data['RECOVERY_PARAMS'] = config_data['RECOVERY_PARAMS']
         out_data['LANDSAT'] = config_data['LANDSAT']
+        out_data['BASELAYERS'] = config_data['BASELAYERS']
         
     with open(out_path, 'w') as f:
         json.dump(out_data, f, indent=4)
@@ -57,6 +58,13 @@ def get_file_paths(config, ROI_PATH, fireinfo):
         'OUT_SUMMARY_CSV': f'{maps_fire_dir}{prefix}_time_series_summary_df.csv',
         'RECOVERY_COUNTS_SUMMARY_CSV': f'{maps_fire_dir}{prefix}_grouping_counts_recovery_summary.csv',
         'PLOTS_DIR': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_PLOTS_DIR']}{prefix}/', ROI_PATH),
+        'BASELAYERS': {
+            'severity': glob.glob(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/spatialinfo/*._burnsev.tif', ROI_PATH))[0],
+            'agdev_mask': get_path(config['BASELAYERS']['agdev_mask']['fname'], ROI_PATH),
+            'annual_dist':get_path(config['BASELAYERS']['annual_dist']['fname'], ROI_PATH),
+            'groupings': get_path(config['BASELAYERS']['groupings']['fname'], ROI_PATH),
+            'groupoings_summary_csv': get_path(config['BASELAYERS']['groupings']['summary_csv'], ROI_PATH),
+        }
         'OUT_TIFS_D': {
             'severity': (
                 f'{maps_fire_dir}{prefix}_severity.tif',

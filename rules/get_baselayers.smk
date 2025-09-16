@@ -271,6 +271,7 @@ rule make_groupings:
         elev_band_m=config['RECOVERY_PARAMS']['ELEV_BANDS_METERS'],
         nlcd_dir=get_path(config['NLCD']['dir_name'], ROI_PATH),
         vegcodes_csv=get_path(config['NLCD']['vegcodes_csv'], ROI_PATH),
+        groupings_csv=get_path(config['BASELAYERS']['groupings']['summary_csv'], ROI_PATH),
         merged_topo=get_path(config['BASELAYERS']['topo']['fname'], ROI_PATH),
         conda_env='RIO_GPD',
         email=config['NOTIFY_EMAIL']
@@ -289,6 +290,7 @@ rule make_groupings:
         {params.elev_band_m} \
         {params.nlcd_dir} \
         {params.vegcodes_csv} \
+        {params.groupings_csv} \
         {params.merged_topo} \
         {output.out_f} \
         {output.done_flag}  > {log.stdout} 2> {log.stderr}

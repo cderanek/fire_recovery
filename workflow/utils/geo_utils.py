@@ -10,8 +10,9 @@ import re
 import os
 import json
 import gc
-from typing import Union, Tuple
+from shapely.geometry import box
 
+from typing import Union, Tuple
 NumericType = Union[int, float]
 
 def clip_raster_to_poly(
@@ -41,7 +42,7 @@ def buffer_firepoly(
     buffer_distance:NumericType=10000
 )->Tuple[pd.DataFrame, str]:
     """
-    Buffer a fire polygon shapefile by a specified distance and ensure it's not a multipolygon.
+    Buffer a fire polygon shapefile by a specified distance, and return the bbox.
     
     Parameters:
         fire_shp_path (str): Path to the fire polygon shapefile
@@ -60,6 +61,13 @@ def buffer_firepoly(
 
     # Reproject the buffered gpd object to the original crs
     fire_poly = fire_poly_utm.to_crs(fire_poly.crs)
+
+    # Create just the bbox around the buffered fire polygon
+    xmin, ymin, xmax, ymax = fire_poly.geometry.iloc[0].bounds
+    fire_poly = gpd.GeoDataFrame(
+        geometry=[box(xmin, ymin, xmax, ymax)], 
+        crs=fire_poly.crs
+    )
     
     # Save to new shapefile
     fire_poly.to_file(out_f, mode='w')

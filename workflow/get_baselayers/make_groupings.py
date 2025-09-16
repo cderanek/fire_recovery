@@ -92,7 +92,7 @@ def get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m):
     return output_csv, output_dtype, nodataval
 
 
-def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, output_f):
+def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, groupings_csv, merged_topo, output_f):
     # open inputs
     all_tifs = glob.glob(os.path.join(nlcd_dir, '*_clipped.tif'))
     nlcd_csv = pd.read_csv(nlcd_csv)
@@ -103,7 +103,7 @@ def make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_csv, merged_topo, outp
 
     # Determine output groupings, dtype based on max unique groups
     output_csv, output_dtype, nodataval = get_groupings_csv(nlcd_csv, elev_rxr, elevation_band_m)
-    output_csv.to_csv(output_f.replace('.nc', '_groupings_summary.csv'))
+    output_csv.to_csv(groupings_csv)
 
     # Get groupings layer for each year
     yr_layers = []
@@ -145,10 +145,11 @@ if __name__ == '__main__':
     elevation_band_m = int(sys.argv[1])
     nlcd_dir = sys.argv[2]
     nlcd_vegcodes_csv = sys.argv[3]
-    merged_topo = sys.argv[4]
-    output_f = sys.argv[5]
-    done_flag = sys.argv[6]
+    groupings_csv = sys.argv[4]
+    merged_topo = sys.argv[5]
+    output_f = sys.argv[6]
+    done_flag = sys.argv[7]
 
-    make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_vegcodes_csv, merged_topo, output_f)
+    make_allyr_groupings(elevation_band_m, nlcd_dir, nlcd_vegcodes_csv, groupings_csv, merged_topo, output_f)
 
     subprocess.run(['touch', done_flag])

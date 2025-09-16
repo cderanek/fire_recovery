@@ -60,7 +60,7 @@ LANDSAT:
     'L08.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
     'L09.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
   DEFAULT_NODATA: -9999
-  NUM_PARALLEL_WORKERS: 6 # Max parallel workers/num cores to request for data download
+  NUM_YRS_PER_REQUEST: 6 # Max parallel workers/num cores to request for data download
 
 
 ### GET_BASELAYERS ####

@@ -133,6 +133,18 @@ def stream_bundle_file(task_id, head, f, max_retries=30):
             else: time.sleep(SLEEP_TIME)    
 
 
+def try_get_bundle_once(task_id, head):
+    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+    try:
+        # Request bundle
+        bundle = requests.get('{}bundle/{}'.format(APPEEARS_API_ENDPOINT,task_id), headers=head).json()  # Call API and return bundle contents for the task_id as json
+        return bundle
+            
+    except Exception as e:
+        print(f'Request for bundle with task_id {task_id} failed', flush=True)
+        return None
+
+
 def get_bundle(task_id, head, max_retries=30):
     failures=0
     while True:
@@ -175,8 +187,21 @@ def post_request(task_json, head, max_retries=30):
             else: time.sleep(SLEEP_TIME)           
 
 
-def ping_appears(task_id, head, max_retries=30):
+def ping_appears_once(task_id, head):
+    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+    try:
+        response = requests.get(f'{APPEEARS_API_ENDPOINT}task/{task_id}', headers=head).json()['status'] 
+        if response == 'done':
+                print(f'Finished processing {task_id}.', flush=True)
+                return True
+
+        else: return False
     
+    except Exception as e:
+        print(f'Request {task_id} in ping_appears failed. Error: {e}', flush=True)
+            
+
+def ping_appears(task_id, head, max_retries=30):
     # Ping API until request is complete or we hit max consecutive failures
     consecutive_failures=0
     while True:
@@ -278,7 +303,7 @@ def create_product_request_json(task_name: str, start_date:str, end_date:str, sh
                 "endDate": end_date, 
                 "recurring": False, 
                 "startDate": start_date, 
-                "yearRange": [1950, 2050]}], 
+                "yearRange": [1982, 2026]}], 
             "layers": prodLayer, 
             "output": {
                 "format": {"type": file_type}, 
