@@ -28,7 +28,7 @@ RECOVERY_PARAMS:
   CREATE_INTERMEDIATE_TIFS: True    # data output params
   MAKE_PLOTS: True
   DELETE_NDVI_SEASONAL_TIFS: False
-  LOGGING_PROCESS_CSV: f'logs/processing_progress_summary.csv'
+  LOGGING_PROCESS_CSV: 'logs/processing_progress_summary.csv'
   MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
   GROUPING_BAND_FORMAT:
     'pattern': "^(?P<veg_elev_id>\\d{2})(?P<prefire_median_NDVI>\\d{2})$"

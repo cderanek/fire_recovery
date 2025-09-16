@@ -11,7 +11,7 @@ cd /u/project/eordway/shared/surp_cd/fire_recovery
 snakemake --lint
 
 
-snakemake --dry-run
+snakemake --profile profiles/age --dry-run
 snakemake -c 1
 
 qrsh -l h_data=50G

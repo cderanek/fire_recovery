@@ -64,8 +64,6 @@ if __name__ == '__main__':
         min_seasons=config['RECOVERY_PARAMS']['MIN_SEASONS']
     )
     
-    # recovery_da = calculate_resilience(recovery_da)
-    
     # Export outputs to nc, tif
     if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: 
         recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery
