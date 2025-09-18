@@ -12,7 +12,7 @@ sys.path.append("workflow/utils/")
 from earthaccess_downloads import *
 from merge_process_scenes import mosaic_ndvi_timeseries
 from geo_utils import buffer_firepoly
-SLEEP_TIME = 60*1 # 2min pause between pings
+SLEEP_TIME = 60*2 # 2min pause between pings
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def create_download_log(args):
@@ -43,7 +43,7 @@ def create_download_log(args):
         df = pd.read_csv(args['download_log_csv'])
         df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
-
+        df['mosaic_tries_left'] = 5 # reset mosaic tries left
         now = datetime.now()
         cutoff = now - timedelta(hours=24)
 
@@ -55,9 +55,23 @@ def create_download_log(args):
         print(f'reset download rows: {reset_download_rows}')
         cols_to_reset = ['head', 'task_id', 'bundle', 'task_submitted_time', 'bundle_received_time']
         df.loc[reset_download_rows, cols_to_reset] = np.nan
+        
+    df = df.astype({
+        'start_year': 'int', 
+        'end_year': 'int',
+        'dest_dir': 'str',
+        'head': 'object', 
+        'task_id': 'object', 
+        'bundle': 'object',
+        'task_submitted_time': 'object', 
+        'bundle_received_time': 'object', 
+        'download_complete': 'bool', 
+        'ndvi_mosaic_complete': 'bool',
+        'get_bundle_tries_left': 'int',
+        'download_bundle_tries_left': 'int',
+        'mosaic_tries_left': 'int'
+    })
 
-    df['start_year'] = df['start_year'].astype('int')
-    df['end_year'] = df['end_year'].astype('int')
     os.makedirs(os.path.dirname(args['download_log_csv']), exist_ok=True)
     df.to_csv(args['download_log_csv'], index=False)
     return df
@@ -111,7 +125,7 @@ def process_all_years(args: dict) -> dict:
     unsuccessful_years_w_retries = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
     while len(unsuccessful_years_w_retries) >= 1:
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}')
-        
+        download_log.to_csv(args['download_log_csv'], index=False)
         # for each task with no bundle, ping appeears, and if ready, get bundle
         nodbundle_years_df = download_log[['start_year', 'task_id', 'head']][(download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
         for index, (start_year, task_id, head) in nodbundle_years_df.iterrows():
@@ -129,7 +143,7 @@ def process_all_years(args: dict) -> dict:
 
                 # Update download log
                 if bundle:
-                    download_log.loc[index, 'bundle'] = bundle
+                    download_log.loc[index, 'bundle'] = json.dumps(bundle)
                     download_log.loc[index, 'bundle_received_time'] = datetime.now()
                 else:
                     download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
@@ -151,7 +165,7 @@ def process_all_years(args: dict) -> dict:
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic
         incomplete_mosaic_df = download_log[['start_year', 'end_year', 'dest_dir']][(download_log['download_complete']==True) & (download_log['ndvi_mosaic_complete']==False) & (download_log['mosaic_tries_left']>0)]
         for index, (start_year, end_year, dest_dir) in incomplete_mosaic_df.iterrows():
-            print(f'Attempting mosaic for: {start_year}; dest_dir: {dest_dir}')
+            print(f'Starting seasonal mosaic for: {start_year}; dest_dir: {dest_dir}')
             try:
                 mosaic_ndvi_timeseries(
                     dest_dir, args['valid_layers'], args['ls_seasonal_dir'], NODATA=args['default_nodata'], 
@@ -163,8 +177,8 @@ def process_all_years(args: dict) -> dict:
 
             except Exception as e:
                 # Update mosaic_tries_left on download log
-                download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
                 print(f'Failed to mosaic from {dest_dir}.')
+                download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
 
         # Update count of successful, unsuccessful years
         successful_years = download_log['start_year'][download_log['ndvi_mosaic_complete']==True]
@@ -183,7 +197,7 @@ def report_results(successful_years, failed_years, args):
     
     # update submissions organizer csv
     lock_file = args['progress_log_csv'] + '.lock'
-    lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock if necessary (other batch jobs for other fires may also be waiting to update csv)
+    lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
     try:
         with lock:
             csv = pd.read_csv(args['progress_log_csv'])

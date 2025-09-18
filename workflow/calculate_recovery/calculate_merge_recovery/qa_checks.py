@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 
 def temporal_coverage_check(
-        ndvi_thresholds_da: xr.DataArray, 
-        config: dict, 
-        fire_metadata: dict):
-        '''Takes in ndvi_thresholds_da xr.DataArray and flags any pixels with too many missing dates, 
+    ndvi_thresholds_da: xr.DataArray, 
+    config: dict, 
+    fire_metadata: dict):
+    '''Takes in ndvi_thresholds_da xr.DataArray and flags any pixels with too many missing dates, 
         as defined by:
         1. having fewer than <config['MIN_TEMPORAL_COVERAGE_RATIO'] coverage over the past
         config['YRS_PREFIRE_MATCHED'] years and 10 years post-fire. 
@@ -19,17 +19,22 @@ def temporal_coverage_check(
         1. temporal_coverage_qa
         2. matched_group_temporal_coverage_qa
         , and are set to 1 for values to mask, and 0 for values to keep.
-        '''
-
+    '''
     # Filter NDVI time series to only have dates for YRS_PREFIRE_MATCHED
     fire_date = fire_metadata['FIRE_DATE']
     start_matching = fire_date - pd.Timedelta(weeks=52*config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED'])
     end_matching = fire_date + pd.Timedelta(weeks=52*10)
     
-    filtered_ndvi =  ndvi_thresholds_da \
-        .sel(time=slice(start_matching, end_matching)).copy()
-    filtered_thresholds = ndvi_thresholds_da.threshold \
-        .sel(time=slice(start_matching, end_matching)).copy()
+    filtered_ndvi =  (
+        ndvi_thresholds_da
+        .sel(time=slice(start_matching, end_matching))
+        .copy()
+        )
+    filtered_thresholds = (
+        ndvi_thresholds_da.threshold
+        .sel(time=slice(start_matching, end_matching))
+        .copy()
+        )
     
     # Count the number of nodata NDVI values during the time series (pixel-wise count)
     filtered_ndvi.data = np.where(

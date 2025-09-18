@@ -5,7 +5,7 @@ USGS EROS tutorial:
 https://github.com/nasa/AppEEARS-Data-Resources
 """
 
-import sys, os, re, time, requests
+import sys, os, re, time, requests, json
 import earthaccess
 import geopandas as gpd
 import numpy as np
@@ -15,49 +15,6 @@ from netrc import netrc
 APPEEARS_API_ENDPOINT = 'https://appeears.earthdatacloud.nasa.gov/api/'
 SLEEP_TIME = 60*5 # 5min pause between pings
 
-
-def download_landsat_data(roi_path:str, start_date:str, end_date:str, product_layers:dict, out_dir:str, redownload_data:bool=False):
-    """
-    Download 1 water year of Landsat data using EarthAccess API.
-    
-    Parameters:
-        roi_path (str): Path to region of interest shapefile
-        start_date (str): start date for data download, formatted as 'MM-DD-YYYY'
-        end_date (str): end date for data download, formatted as 'MM-DD-YYYY'
-        product_layers (dict): Dictionary of products and their layers
-        out_dir (str): Output directory for downloaded files
-        
-    Returns:
-        str: Path to the directory containing downloaded files
-    """
-    cleaned_roi_path = re.sub(r'[^a-zA-Z0-9_-]', '', os.path.basename(roi_path))
-    task_name = f'LS_{start_date}_{end_date}_{cleaned_roi_path}'
-    dest_dir = os.path.join(out_dir, task_name)
-    
-    # Request and download data, if not already downloaded
-    if not os.path.exists(dest_dir) or redownload_data:
-        # Create product request JSON
-        task_json = create_product_request_json(
-            task_name=task_name,
-            start_date=start_date,
-            end_date=end_date,
-            shp_file_path=roi_path,
-            product_layers=product_layers,
-            file_type='geotiff'
-        )
-        # Log in to earth access
-        head = login_earthaccess()
-        
-        # Post request, wait for response, get data bundle
-        bundle, task_id = post_request_get_bundle(task_json, head)
-        
-        # Create dir to hold data
-        os.makedirs(dest_dir, exist_ok=True)
-        
-        # Download data
-        download_landsat_bundle(bundle, task_id, head, dest_dir)
-    
-    return dest_dir
 
 def login_earthaccess():
     try:
@@ -80,31 +37,6 @@ def login_earthaccess():
         print(f'Error logging into EarthAccess. Error: {e}', flush=True)
         time.sleep(SLEEP_TIME)
         login_earthaccess() # Retry until we can login
-        return None
-    
-    
-def post_request_get_bundle(task_json:dict, head:dict):
-    try:
-        # Post request
-        task_id = post_request(task_json, head)
-
-        # Ping API until request is complete, then continue
-        ping_appears(task_id, head)
-        
-        # Return data bundle from posted request
-        print(f'Getting bundle for {task_id}', flush=True)
-        bundle = get_bundle(task_id, head)
-        
-        return bundle, task_id
-    
-    except Exception as e:
-        print(f'Error pinging request for {task_id}. Error: {e}', flush=True)
-        
-        print(f'Request failed. Deleting job {task_id}.', flush=True)
-        response = requests.delete(
-            f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
-            headers=head)
-        print(f'Response code for deletion: {response.status_code}', flush=True)
         return None
 
 
@@ -142,29 +74,7 @@ def try_get_bundle_once(task_id, head):
             
     except Exception as e:
         print(f'Request for bundle with task_id {task_id} failed', flush=True)
-        return np.nan
-
-
-def get_bundle(task_id, head, max_retries=30):
-    failures=0
-    while True:
-        try:
-            # Request bundle
-            bundle = requests.get('{}bundle/{}'.format(APPEEARS_API_ENDPOINT,task_id), headers=head).json()  # Call API and return bundle contents for the task_id as json
-            return bundle
-            
-        except Exception as e:
-            failures+=1
-            print(f'Request failed {failures}/{max_retries} times. Error: {e}', flush=True)
-            
-            if failures >= max_retries: 
-                print(f'Request for bundle in get_bundle failed {failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
-                response = requests.delete(
-                    f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
-                    headers=head)
-                print(f'Response code for deletion: {response.status_code}', flush=True)
-                return False
-            else: time.sleep(SLEEP_TIME)    
+        return np.nan    
 
 
 def post_request(task_json, head, max_retries=30):
@@ -198,50 +108,24 @@ def ping_appears_once(task_id, head):
     
     except Exception as e:
         print(f'Request {task_id} in ping_appears failed. Error: {e}', flush=True)
-            
-
-def ping_appears(task_id, head, max_retries=30):
-    # Ping API until request is complete or we hit max consecutive failures
-    consecutive_failures=0
-    while True:
-        try:
-            response = requests.get(f'{APPEEARS_API_ENDPOINT}task/{task_id}', headers=head).json()['status']            
-            consecutive_failures=0 # we got a response, so reset consecutive_failures
-            
-            if response == 'done':
-                print(f'Finished processing {task_id}.', flush=True)
-                return True
-            time.sleep(SLEEP_TIME)
-            
-        except Exception as e:
-            consecutive_failures+=1
-            print(f'Request {task_id} in ping_appears failed {consecutive_failures}/{max_retries} times. Error: {e}', flush=True)
-            
-            if consecutive_failures >= max_retries: 
-                print(f'Request failed {consecutive_failures}/{max_retries} times. Deleting job {task_id}.', flush=True)
-                response = requests.delete(
-                    f'{APPEEARS_API_ENDPOINT}task/{task_id}', 
-                    headers=head)
-                print(f'Response code for deletion: {response.status_code}', flush=True)
-                return False
-            else: time.sleep(SLEEP_TIME)
 
     
 def download_landsat_bundle(bundle, task_id, head, dest_dir):
     try:
         # Fill dictionary with file_id as keys and file_name as values
-        files = {f['file_id']: f['file_name'] for f in bundle['files']}
+        if type(bundle)==type('s'): bundle = json.loads(bundle)
+        files = [f['file_name'] for f in bundle['files']]
         
         # Iterate over all files in bundle, downloading all tif & nc files
-        for f in files:
-            if ('tif' in files[f]) or ('nc' in files[f]):
-                dl = stream_bundle_file(task_id, head, f)
+        for filename in files:
+            if ('tif' in filename) or ('nc' in filename):
+                dl = stream_bundle_file(task_id, head, filename)
                 
                 # Create dir to store downloaded data, if it doesn't exist
-                if files[f].endswith('.tif'):
-                    filename = files[f].split('/')[1]
+                if filename.endswith('.tif'):
+                    filename = filename.split('/')[1]
                 else:
-                    filename = files[f] 
+                    filename = filename
                 filepath = os.path.join(dest_dir, filename)
                 os.makedirs(dest_dir, exist_ok=True)
                 

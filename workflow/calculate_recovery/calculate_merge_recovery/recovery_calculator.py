@@ -1,11 +1,11 @@
 import xarray as xr
 import pandas as pd
 
-from typing import List
+from typing import List, Union
 
 def calculate_ndvi_thresholds(
     combined_ndvi: xr.DataArray,
-    config: dict) -> List[xr.DataArray, pd.DataFrame]:
+    config: dict) -> List[Union[xr.DataArray, pd.DataFrame]]:
 
     # returns ndvi_thresholds_da, summary_df
     pass
