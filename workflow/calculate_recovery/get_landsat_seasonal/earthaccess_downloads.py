@@ -134,7 +134,7 @@ def stream_bundle_file(task_id, head, f, max_retries=30):
 
 
 def try_get_bundle_once(task_id, head):
-    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+    # time.sleep(SLEEP_TIME) # to enforce sleep time between requests
     try:
         # Request bundle
         bundle = requests.get('{}bundle/{}'.format(APPEEARS_API_ENDPOINT,task_id), headers=head).json()  # Call API and return bundle contents for the task_id as json
@@ -142,7 +142,7 @@ def try_get_bundle_once(task_id, head):
             
     except Exception as e:
         print(f'Request for bundle with task_id {task_id} failed', flush=True)
-        return None
+        return np.nan
 
 
 def get_bundle(task_id, head, max_retries=30):
@@ -188,7 +188,6 @@ def post_request(task_json, head, max_retries=30):
 
 
 def ping_appears_once(task_id, head):
-    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
     try:
         response = requests.get(f'{APPEEARS_API_ENDPOINT}task/{task_id}', headers=head).json()['status'] 
         if response == 'done':
@@ -255,7 +254,7 @@ def download_landsat_bundle(bundle, task_id, head, dest_dir):
     
     except Exception as e:
         print(f'Error downloading files for {dest_dir}. Error: {e}', flush=True)
-        return None
+        return np.nan
 
 
 def create_product_request_json(task_name: str, start_date:str, end_date:str, shp_file_path:str, product_layers:dict, file_type:str='geotiff'):

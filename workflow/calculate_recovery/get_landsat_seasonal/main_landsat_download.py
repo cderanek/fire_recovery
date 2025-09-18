@@ -2,7 +2,7 @@ import sys, os, glob, json
 import pandas as pd
 import filelock
 from functools import partial
-import datetime
+from datetime import datetime, timedelta
 
 from typing import Tuple, Union
 NumericType = Union[int, float]
@@ -12,24 +12,25 @@ sys.path.append("workflow/utils/")
 from earthaccess_downloads import *
 from merge_process_scenes import mosaic_ndvi_timeseries
 from geo_utils import buffer_firepoly
-
+SLEEP_TIME = 60*1 # 2min pause between pings
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def create_download_log(args):
     # if download log doesn't exist, create it
-    if not os.path.exist(args['download_log_csv']):
+    if not os.path.exists(args['download_log_csv']):
+        print(f'Making new {args['download_log_csv']}')
         years_range = list(args['years_range'])
         start_years = list(range(years_range[0], years_range[-1], args['num_yrs_per_request']))
         end_years = [yr-1 for yr in start_years[1:]] + [years_range[-1]]
         df = pd.DataFrame({
             'start_year': start_years, 
             'end_year': end_years,
-            'dest_dir': None,
-            'head': None, 
-            'task_id': None, 
-            'bundle': None,
-            'task_submitted_time': None, 
-            'bundle_received_time': None, 
+            'dest_dir': '',
+            'head': np.nan, 
+            'task_id': np.nan, 
+            'bundle': np.nan,
+            'task_submitted_time': np.nan, 
+            'bundle_received_time': np.nan, 
             'download_complete': False, 
             'ndvi_mosaic_complete': False,
             'get_bundle_tries_left': 20,
@@ -43,18 +44,22 @@ def create_download_log(args):
         df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
 
-        now = datetime.utcnow()
+        now = datetime.now()
         cutoff = now - timedelta(hours=24)
 
         reset_download_rows = (
             (df['download_complete'] == False) &
             (df['task_submitted_time'].notna()) &
-            (df['task_submitted_time'] < cutoff)
+            (df['task_submitted_time']< cutoff)
         )
+        print(f'reset download rows: {reset_download_rows}')
         cols_to_reset = ['head', 'task_id', 'bundle', 'task_submitted_time', 'bundle_received_time']
-        df.loc[reset_download_rows, cols_to_reset] = None
+        df.loc[reset_download_rows, cols_to_reset] = np.nan
 
-    df.to_csv(args['download_log_csv'])
+    df['start_year'] = df['start_year'].astype('int')
+    df['end_year'] = df['end_year'].astype('int')
+    os.makedirs(os.path.dirname(args['download_log_csv']), exist_ok=True)
+    df.to_csv(args['download_log_csv'], index=False)
     return df
 
 
@@ -62,18 +67,18 @@ def process_all_years(args: dict) -> dict:
     # cleanup file names for task submission
     roi_path = args['bufferedfireShpPath']
     cleaned_roi_path = re.sub(r'[^a-zA-Z0-9_-]', '', os.path.basename(roi_path))
-    out_dir = 
 
     # create log to hold headers, task_ids, download status for all jobs
     download_log = create_download_log(args)
-    undownloaded_years_df = download_log[['start_year', 'end_year']][download_log['download_complete']==False]
+    unsubmitted_years_df = download_log[['start_year', 'end_year']][download_log['task_submitted_time'].isna()]
     
     # submit a task for all years
-    for index, (start_year, end_year) in undownloaded_years_df.iterrows():
+    for index, (start_year, end_year) in unsubmitted_years_df.iterrows():
         start_date=f'01-01-{start_year}'
         end_date=f'12-31-{end_year}'
         task_name = f'LS_{start_date}_{end_date}_{cleaned_roi_path}'
         dest_dir = os.path.join(args['ls_data_dir'], task_name)
+        print(f'Dest dir {dest_dir}')
 
         task_json = create_product_request_json(
             task_name=task_name,
@@ -86,17 +91,20 @@ def process_all_years(args: dict) -> dict:
 
         # Log in to earth access
         head = login_earthaccess()
-
+        print(f'head: {head}')
         # Submit task
         task_id = post_request(task_json, head, max_retries=10)
+        print(f'task id: {task_id}')
 
         # Update download log with dest_dir, head, task_id, task_submitted_time
-        download_log.loc[index]['dest_dir'] = dest_dir
-        download_log.loc[index]['head'] = head
-        download_log.loc[index]['task_id'] = task_id
-        download_log.loc[index]['task_submitted_time'] = datetime.utcnow()
-
+        download_log.loc[index, 'dest_dir'] = dest_dir
+        download_log.loc[index, 'head'] = head['Authorization']
+        download_log.loc[index, 'task_id'] = task_id
+        download_log.loc[index, 'task_submitted_time'] = datetime.now()
+        download_log.to_csv(args['download_log_csv'], index=False)
+        
     print(f'Download log after submitting all tasks: {download_log}')
+    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
 
     # keep working on download until all years complete
     successful_years = download_log['start_year'][download_log['ndvi_mosaic_complete']==True]
@@ -105,40 +113,45 @@ def process_all_years(args: dict) -> dict:
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}')
         
         # for each task with no bundle, ping appeears, and if ready, get bundle
-        nodbundle_years_df = download_log[['start_year', 'task_id', 'head']][(download_log['bundle']==None) & (download_log['get_bundle_tries_left']>0)]
+        nodbundle_years_df = download_log[['start_year', 'task_id', 'head']][(download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
         for index, (start_year, task_id, head) in nodbundle_years_df.iterrows():
-            print('Pinging appears for year: {start_year}; task_id: {task_id}')
+            print(f'Pinging appears for year: {start_year}; task_id: {task_id}')
+            head = {'Authorization': head}
             task_complete = ping_appears_once(task_id, head)
-
+            print(f'ping response: {task_complete}')
+            time.sleep(SLEEP_TIME) # to enforce sleep time between requests
             if task_complete:
                 # try to download bundles 
+                print('task complete')
                 bundle = try_get_bundle_once(task_id, head)
+                time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+                print(bundle)
 
                 # Update download log
                 if bundle:
-                    download_log.loc[index]['bundle'] = bundle
-                    download_log.loc[index]['bundle_received_time'] = datetime.utcnow()
+                    download_log.loc[index, 'bundle'] = bundle
+                    download_log.loc[index, 'bundle_received_time'] = datetime.now()
                 else:
-                    download_log.loc[index]['get_bundle_tries_left'] = download_log.loc[index]['get_bundle_tries_left'] - 1
+                    download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
 
         # for each task with a bundle, but incomplete download, try to download bundle
-        incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['bundle']!=None) & (download_log['download_bundle_tries_left']>0)]
+        incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
         for index, (start_year, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            print('Attempting download for year: {start_year}; task_id: {task_id}')
-
+            print(f'Attempting download for year: {start_year}; task_id: {task_id}')
+            head = {'Authorization': head}
             # try to download bundle
             dest_dir = download_landsat_bundle(bundle, task_id, head, dest_dir)
 
             # Update download log
             if dest_dir:
-                download_log.loc[index]['download_complete'] = True
+                download_log.loc[index, 'download_complete'] = True
             else:
-                download_log.loc[index]['download_bundle_tries_left'] = download_log.loc[index]['download_bundle_tries_left'] - 1
+                download_log.loc[index, 'download_bundle_tries_left'] = download_log.loc[index, 'download_bundle_tries_left'] - 1
         
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic
         incomplete_mosaic_df = download_log[['start_year', 'end_year', 'dest_dir']][(download_log['download_complete']==True) & (download_log['ndvi_mosaic_complete']==False) & (download_log['mosaic_tries_left']>0)]
         for index, (start_year, end_year, dest_dir) in incomplete_mosaic_df.iterrows():
-            print('Attempting mosaic for: {start_year}; dest_dir: {dest_dir}')
+            print(f'Attempting mosaic for: {start_year}; dest_dir: {dest_dir}')
             try:
                 mosaic_ndvi_timeseries(
                     dest_dir, args['valid_layers'], args['ls_seasonal_dir'], NODATA=args['default_nodata'], 
@@ -146,11 +159,11 @@ def process_all_years(args: dict) -> dict:
                     MAKE_RGB=False, MAKE_DAILY_NDVI=False, 
                 )
                 # Update download log
-                download_log.loc[index]['ndvi_mosaic_complete'] = True
+                download_log.loc[index, 'ndvi_mosaic_complete'] = True
 
             except Exception as e:
                 # Update mosaic_tries_left on download log
-                download_log.loc[index]['mosaic_tries_left'] = download_log.loc[index]['mosaic_tries_left'] - 1
+                download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
                 print(f'Failed to mosaic from {dest_dir}.')
 
         # Update count of successful, unsuccessful years
@@ -210,7 +223,7 @@ if __name__ == "__main__":
         'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR'],
         'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR'],
         'progress_log_csv': config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'],
-        'download_log_csv': os.path.join(file_paths['INPUT_LANDSAT_DATA_DIR'], 'download_log.csv')
+        'download_log_csv': os.path.join(file_paths['INPUT_LANDSAT_DATA_DIR'], 'download_log.csv'),
         'valid_layers': config['LANDSAT']['VALID_LAYERS'],
         'default_nodata': config['LANDSAT']['DEFAULT_NODATA'],
         'product_layers': config['LANDSAT']['PRODUCT_LAYERS'],

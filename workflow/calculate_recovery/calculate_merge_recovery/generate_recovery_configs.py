@@ -63,7 +63,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
             'agdev_mask': get_path(config['BASELAYERS']['agdev_mask']['fname'], ROI_PATH),
             'annual_dist':get_path(config['BASELAYERS']['annual_dist']['fname'], ROI_PATH),
             'groupings': get_path(config['BASELAYERS']['groupings']['fname'], ROI_PATH),
-            'groupoings_summary_csv': get_path(config['BASELAYERS']['groupings']['summary_csv'], ROI_PATH)
+            'groupings_summary_csv': get_path(config['BASELAYERS']['groupings']['summary_csv'], ROI_PATH)
         },
         'OUT_TIFS_D': {
             'severity': (
@@ -126,7 +126,7 @@ def create_perfire_config_json(config_path, out_path):
 
 
 if __name__ == '__main__':
-    print(f'Running generate_recovery_configs.py with arguments {'\n'.join(sys.argv)}\n')
+    print(f'Running generate_recovery_configs.py with arguments {' '.join(sys.argv)}\n')
     config_path = sys.argv[1]
     main_config_out = sys.argv[2]
     perfire_config_out = sys.argv[3]
@@ -141,6 +141,6 @@ if __name__ == '__main__':
     print('created perfire config')
 
     # # DONE FLAG
-    os.makedirs(done_flag, exist_ok=True)
+    os.makedirs(os.path.dirname(done_flag), exist_ok=True)
     subprocess.run(['touch', done_flag])
     print('created done flag')

@@ -1,4 +1,4 @@
-import gc, glob, os
+import gc, glob, os, sys
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -8,7 +8,8 @@ from shapely.geometry import box
 
 from typing import List, Tuple, Union
 
-from workflow.utils.geo_utils import reproj_align_rasters
+sys.path.append("workflow/utils/")
+from geo_utils import reproj_align_rasters
 
 
 def open_align_fire_rasters(
