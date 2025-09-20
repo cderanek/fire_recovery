@@ -229,7 +229,7 @@ def create_ndvi_match_layer(
                     # For subsequent groups, exclude the lower bound
                     mask = ((groupings_rxr.data == base_group) & ~np.isnan(med_ndvi_prefire.data)) & (med_ndvi_prefire.data > bin_edges[i]) & (med_ndvi_prefire.data <= bin_edges[i+1])
                 
-                group_id = base_group*10**3 + int(bin_edges[i+1]*10**2) # upper bound of NDVI for grouping, appended as last 2 digits to groupings data
+                group_id = base_group*10**3 + int(bin_edges[i+1]*10**2) # upper bound of NDVI for grouping, appended as last 3 digits to groupings data
                 print(f'base_group: {base_group}, base_group*10**3: {base_group*10**3}, int(bin_edges[i+1]*10**2): {int(bin_edges[i+1]*10**2)}, group_id: {group_id}')
                 updated_groups = np.where(mask==True, group_id, updated_groups)
 

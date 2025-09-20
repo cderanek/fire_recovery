@@ -114,12 +114,12 @@ def download_landsat_bundle(bundle, task_id, head, dest_dir):
     try:
         # Fill dictionary with file_id as keys and file_name as values
         if type(bundle)==type('s'): bundle = json.loads(bundle)
-        files = [f['file_name'] for f in bundle['files']]
+        files = {f['file_id']: f['file_name'] for f in bundle['files']}
         
         # Iterate over all files in bundle, downloading all tif & nc files
-        for filename in files:
+        for fileid, filename in files.items():
             if ('tif' in filename) or ('nc' in filename):
-                dl = stream_bundle_file(task_id, head, filename)
+                dl = stream_bundle_file(task_id, head, fileid)
                 
                 # Create dir to store downloaded data, if it doesn't exist
                 if filename.endswith('.tif'):

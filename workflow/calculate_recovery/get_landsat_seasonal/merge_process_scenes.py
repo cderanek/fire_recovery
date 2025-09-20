@@ -349,19 +349,23 @@ def process_each_scene_ndvi(
     allNDVIs = []
     
     for uid in np.unique(group['uid']):
-        # Calculate NDVI
-        ndvi = calc_ndvi_rxr(group[group['uid'] == uid], nodata, NDVI_BANDS_DICT)
-        
-        # Optionally make RGB image
-        if make_rgb:
-            rgb, _ = calc_rgb_rxr(group[group['uid'] == uid], nodata, RGB_BANDS_DICT)
-            rgb_out_path = group[group['uid'] == uid]['rgb_out_path'].values[0]
-            export_to_tiff(
-                rgb, 
-                rgb_out_path,
-                dtype_out='float32',
-                nodata=nodata
-            )
+        try:
+            # Calculate NDVI
+            ndvi = calc_ndvi_rxr(group[group['uid'] == uid], nodata, NDVI_BANDS_DICT)
+            
+        except Exception as e:
+            print(f'ERROR: Couldnt calculate NDVI for uid {uid}.\n{e}')
+            
+            # Optionally make RGB image
+            if make_rgb:
+                rgb, _ = calc_rgb_rxr(group[group['uid'] == uid], nodata, RGB_BANDS_DICT)
+                rgb_out_path = group[group['uid'] == uid]['rgb_out_path'].values[0]
+                export_to_tiff(
+                    rgb, 
+                    rgb_out_path,
+                    dtype_out='float32',
+                    nodata=nodata
+                )
         
         # Apply QA mask to NDVI
         qa_path = group[

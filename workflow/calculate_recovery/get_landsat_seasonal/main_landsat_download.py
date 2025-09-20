@@ -151,7 +151,7 @@ def process_all_years(args: dict) -> dict:
         # for each task with a bundle, but incomplete download, try to download bundle
         incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
         for index, (start_year, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            print(f'Attempting download for year: {start_year}; task_id: {task_id}')
+            print(f'Downloading bundle with start year: {start_year}; task_id: {task_id}')
             head = {'Authorization': head}
             # try to download bundle
             dest_dir = download_landsat_bundle(bundle, task_id, head, dest_dir)
@@ -178,6 +178,7 @@ def process_all_years(args: dict) -> dict:
             except Exception as e:
                 # Update mosaic_tries_left on download log
                 print(f'Failed to mosaic from {dest_dir}.')
+                print(e)
                 download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
 
         # Update count of successful, unsuccessful years
@@ -235,7 +236,7 @@ if __name__ == "__main__":
         'fireid': fireid,
         'fire_shp': glob.glob(f'{fire_metadata['FIRE_BOUNDARY_PATH']}*wumi_mtbs_poly.shp')[0],
         'ls_data_dir': file_paths['INPUT_LANDSAT_DATA_DIR'],
-        'ls_seasonal': file_paths['INPUT_LANDSAT_SEASONAL_DIR'],
+        'ls_seasonal_dir': file_paths['INPUT_LANDSAT_SEASONAL_DIR'],
         'progress_log_csv': config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'],
         'download_log_csv': os.path.join(file_paths['INPUT_LANDSAT_DATA_DIR'], 'download_log.csv'),
         'valid_layers': config['LANDSAT']['VALID_LAYERS'],

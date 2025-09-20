@@ -31,9 +31,9 @@ RECOVERY_PARAMS:
   LOGGING_PROCESS_CSV: 'logs/processing_progress_summary.csv'
   MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
   GROUPING_BAND_FORMAT:
-    'pattern': "^(?P<veg_elev_id>\\d{2})(?P<prefire_median_NDVI>\\d{2})$"
+    'pattern': "^(?P<veg_elev_id>\\d{2})(?P<prefire_median_NDVI>\\d{3})$"
     'groups': ['veg_elev_id', 'prefire_median_NDVI']
-    'digits': 4
+    'digits': 5
 
 
 ### LANDSAT DOWNLOAD PARAMETERS ####
