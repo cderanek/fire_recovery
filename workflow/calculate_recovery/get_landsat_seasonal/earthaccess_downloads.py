@@ -13,7 +13,7 @@ from netrc import netrc
 
 
 APPEEARS_API_ENDPOINT = 'https://appeears.earthdatacloud.nasa.gov/api/'
-SLEEP_TIME = 60*5 # 5min pause between pings
+SLEEP_TIME = 60*2 # 2min pause between requests
 
 
 def login_earthaccess():
@@ -66,7 +66,6 @@ def stream_bundle_file(task_id, head, f, max_retries=30):
 
 
 def try_get_bundle_once(task_id, head):
-    # time.sleep(SLEEP_TIME) # to enforce sleep time between requests
     try:
         # Request bundle
         bundle = requests.get('{}bundle/{}'.format(APPEEARS_API_ENDPOINT,task_id), headers=head).json()  # Call API and return bundle contents for the task_id as json

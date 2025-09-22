@@ -44,6 +44,7 @@ def create_download_log(args):
         df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['mosaic_tries_left'] = 5 # reset mosaic tries left
+        df['download_bundle_tries_left'] = 5 # reset download bundle tries left
         now = datetime.now()
         cutoff = now - timedelta(hours=24)
 
@@ -117,14 +118,13 @@ def process_all_years(args: dict) -> dict:
         download_log.loc[index, 'task_submitted_time'] = datetime.now()
         download_log.to_csv(args['download_log_csv'], index=False)
         
-    print(f'Download log after submitting all tasks: {download_log}')
-    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+    print(f'Download log after submitting all tasks: {download_log}', flush=True)
 
     # keep working on download until all years complete
     successful_years = download_log['start_year'][download_log['ndvi_mosaic_complete']==True]
     unsuccessful_years_w_retries = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
     while len(unsuccessful_years_w_retries) >= 1:
-        print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}')
+        print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}', flush=True)
         download_log.to_csv(args['download_log_csv'], index=False)
         # for each task with no bundle, ping appeears, and if ready, get bundle
         nodbundle_years_df = download_log[['start_year', 'task_id', 'head']][(download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
@@ -149,15 +149,16 @@ def process_all_years(args: dict) -> dict:
                     download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
 
         # for each task with a bundle, but incomplete download, try to download bundle
-        incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
+        incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['download_complete']==False) & (download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
         for index, (start_year, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
             print(f'Downloading bundle with start year: {start_year}; task_id: {task_id}')
             head = {'Authorization': head}
             # try to download bundle
-            dest_dir = download_landsat_bundle(bundle, task_id, head, dest_dir)
+            dest_dir_complete = None
+            dest_dir_complete = download_landsat_bundle(bundle, task_id, head, dest_dir)
 
             # Update download log
-            if dest_dir:
+            if dest_dir_complete:
                 download_log.loc[index, 'download_complete'] = True
             else:
                 download_log.loc[index, 'download_bundle_tries_left'] = download_log.loc[index, 'download_bundle_tries_left'] - 1
@@ -170,7 +171,7 @@ def process_all_years(args: dict) -> dict:
                 mosaic_ndvi_timeseries(
                     dest_dir, args['valid_layers'], args['ls_seasonal_dir'], NODATA=args['default_nodata'], 
                     NDVI_BANDS_DICT=args['ndvi_bands_dict'], RGB_BANDS_DICT=args['rgb_bands_dict'],
-                    MAKE_RGB=False, MAKE_DAILY_NDVI=False, 
+                    MAKE_RGB=args['make_daily_rgb'], MAKE_DAILY_NDVI=args['make_daily_ndvi']
                 )
                 # Update download log
                 download_log.loc[index, 'ndvi_mosaic_complete'] = True
@@ -246,16 +247,19 @@ if __name__ == "__main__":
         'rgb_bands_dict': config['LANDSAT']['RGB_BANDS_DICT'],
         'num_yrs_per_request': config['LANDSAT']['NUM_YRS_PER_REQUEST'],
         'fire_yr': fire_metadata['FIRE_YEAR'],
-        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025)
+        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025),
+        'make_daily_rgb': True,
+        'make_daily_ndvi': False
     }
-    
-    for (key, val) in args.items():
-        print(key, val, flush=True)
     
     # get buffered fire polygon for requesting Landsat data in a fire + 10km buffer
     bufferedfire_gdf, bufferedfireShpPath = buffer_firepoly(args['fire_shp'])
     args['bufferedfire_gdf'] = bufferedfire_gdf
     args['bufferedfireShpPath'] = bufferedfireShpPath
+
+    # print args to log
+    for (key, val) in args.items():
+        print(key, val, flush=True)
     
     # process all years with parallel workers (will skip any years that were successfully downloaded prior)
     successful_years, failed_years = process_all_years(args)

@@ -68,7 +68,7 @@ def calculate_ndvi_thresholds(
     # Update data array to have a threshold variable
     ndvi_da['threshold'] = thresholds_da
     
-    # Sort by time, organize the dimensions
+    # Sort by time, organize the dimensions∂
     ndvi_da = ndvi_da.sortby('time')
     ndvi_da = ndvi_da.transpose('time', 'y', 'x')
     
@@ -149,34 +149,6 @@ def single_fire_recoverytime_summary(
     fire_date = fire_metadata['FIRE_DATE']
     out_csv = file_paths['RECOVERY_COUNTS_SUMMARY_CSV']
     nlcd_vegcode_df = pd.read_csv(config['BASELAYERS']['GROUPINGS']['summary_csv'])
-    
-    # Add precipitation data to recovery_rxr obj
-    ## Open precip anomalies data for 1 year post-fire, only Dec-May months
-    precip_path = config['PRECIP_ANOMALY_PATH']
-    desired_months = [12] + list(range(1,6)) # just use anomaly in wet months Dec - May
-    precip_data_all = {1: None, 3: None, 5: None}
-    for years_precip in precip_data_all.keys():
-        precip_data = (
-            xr.open_dataset(precip_path, decode_coords="all")
-            .sel(time=slice(fire_date, fire_date+pd.DateOffset(years=years_precip)))
-            )
-        data_var = list(precip_data.data_vars)[0]
-        precip_data = precip_data[data_var].to_dataset()
-        print(f'unfiltered precip_data yr {years_precip}: {precip_data}', flush=True)
-        precip_data = precip_data.assign_coords(month=precip_data.time.dt.month.data).set_index(month='month')
-        precip_data = precip_data.sel(month=precip_data.month.isin(desired_months))
-        
-        ## Reproject/align to match the recovery_da grid/extent
-        _, precip_data = reproj_align_rasters(recovery_da['fire_recovery_time'], precip_data)
-        
-        ## Get the cumulative anomaly
-        precip_data = precip_data.mean(dim='time') * 10**-3
-        precip_data_all[years_precip] = precip_data[data_var]
-        if config['CREATE_INTERMEDIATE_TIFS']: 
-            out_f_precip = config['RECOVERY_DATA_BASE_DIR']+'resampled_precip_data_anomaly_sum'+str(years_precip)+'years.nc'
-            precip_data.to_netcdf(out_f_precip)
-            
-        print(f'precip_data yr {years_precip}: {precip_data[data_var]}', flush=True)
                     
     # Open recovery_rxr obj and mask all ag/dev and future disturbances
     # Currently, all unrecovered pixels are nans, set them to np.inf, and then mask bad pixels as nans
@@ -196,18 +168,14 @@ def single_fire_recoverytime_summary(
         'fire_acr': fire_metadata['FIRE_ACR'],
         "recovery_num_seasons": recovery_data.flatten(),
         "severity": recovery_da['severity'].data.flatten(), 
-        "groups": recovery_da['groups'].data.flatten(),
-        "1_year_precip_anomaly_wetseason": precip_data_all[1].data.flatten(),
-        "3_year_precip_anomaly_wetseason": precip_data_all[3].data.flatten(),
-        "5_year_precip_anomaly_wetseason": precip_data_all[5].data.flatten()
+        "groups": recovery_da['groups'].data.flatten()
         }
     ).astype({
         "fire": 'str',
         "fire_date": 'datetime64[ns]',
         "recovery_num_seasons": 'float64',
         "severity": 'float64', 
-        "groups": 'int',
-        "1_year_precip_anomaly_wetseason": 'int'
+        "groups": 'int'
         }
     ).dropna(subset=['groups', 'recovery_num_seasons'])
     
@@ -324,7 +292,7 @@ def extract_group_vals(summary_df: pd.DataFrame,
         
     # Add vegetation names and elevation bands
     lookup_dict = nlcd_vegcode_df.set_index('id')[['NLCD_NAME', 'ELEV_LOWER_BOUND']].to_dict('index')
-    summary_df[['Vegetation_Name', 'Elevation_Band']] = summary_df['veg_elev_id'].map(
+    summary_df[['Vegetation_Name', 'Elevation']] = summary_df['veg_elev_id'].map(
         lambda id: pd.Series([lookup_dict[id]['NLCD_NAME'], lookup_dict[id]['ELEV_LOWER_BOUND']])
         )   
     return summary_df

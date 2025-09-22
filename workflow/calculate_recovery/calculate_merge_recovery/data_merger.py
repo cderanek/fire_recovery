@@ -10,6 +10,8 @@ from typing import List, Tuple, Union
 
 sys.path.append("workflow/utils/")
 from geo_utils import reproj_align_rasters
+sys.path.append("workflow/calculate_recovery/make_plots/")
+from recovery_plots import create_density_plot
 
 
 def open_align_fire_rasters(

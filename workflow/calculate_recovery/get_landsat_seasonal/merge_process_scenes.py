@@ -25,13 +25,13 @@ def makeDF_uniqueIDs(
     """
     Create a DataFrame with unique IDs for Landsat files.
     
-    Parameters:
-        data_dir (str): Directory containing Landsat files
+    Params:
+    data_dir (str): Directory containing Landsat files
         valid_layers (list): List of valid band/layer names
         out_dir (str): Output directory for processed files
         
     Returns:
-        pandas.DataFrame: DataFrame with organized file information
+    pandas.DataFrame: DataFrame with organized file information
     """
     # Get list of all unique IDs in our LS data directory based on file names
     path_list = glob.glob(LS_DATA_DIR+'/*.tif')
@@ -86,14 +86,14 @@ def qa_mask(
     ) -> np.ndarray:
     """
     Creates a boolean mask based on the specified mask type.
-     -   Args:
-            qa_arr (np.ndarray): The quality assessment array.
-            mask_type (str): The type of mask to create. Valid options are:
-                "fill", "dilated", "cirrus", "cloud", "shadow", "snow", "clear", "water", 
-                the high, mid and low masks refer to confidence levels.
+    Params:
+    qa_arr (np.ndarray): The quality assessment array.
+    mask_type (str): The type of mask to create. Valid options are:
+        "fill", "dilated", "cirrus", "cloud", "shadow", "snow", "clear", "water", 
+        the high, mid and low masks refer to confidence levels.
 
-     -   Returns:
-            np.ndarray: The boolean mask with True and False values.
+    Returns:
+    np.ndarray: The boolean mask with True and False values.
     """
     mask_type = mask_type.lower()  # Convert mask type to lowercase
     
@@ -150,7 +150,7 @@ def create_masked_landsat(
     """
     Apply QA masks to an NDVI raster.
     
-    Parameters:
+    Params:
         ndvi_rxr (xarray.DataArray): Raster to mask
         qa_pixel_path (str): Path to QA pixel file
         nodata (int): No-data value
@@ -184,8 +184,7 @@ def calc_ndvi_rxr(
     """
     Calculate NDVI from Landsat bands, return rxr object with NDVI band for a single date.
     
-    Parameters:
-    -----------
+    Params:
     landsat_bands_paths_df : pandas.DataFrame
         DataFrame containing path and metadata information on Landsat band tifs, filtered to a single date.
         DataFram has the columns:
@@ -198,7 +197,6 @@ def calc_ndvi_rxr(
         Value to use for no data regions (default from DEFAULT_NODATA)
     
     Returns:
-    --------
     xarray.DataArray
         Processed NDVI raster
     """
@@ -258,8 +256,7 @@ def calc_rgb_rxr(
     """
     Stack separate Landsat RGB tifs into a single RGB rxr object for a single date.
     
-    Parameters:
-    -----------
+    Params:
     landsat_bands_paths_df : pandas.DataFrame
         DataFrame containing path and metadata information on Landsat band tifs, filtered to a single date.
         DataFram has the columns:
@@ -272,7 +269,6 @@ def calc_rgb_rxr(
         Value to use for no data regions (default -9999)
     
     Returns:
-    --------
     Tuple containing:
     - Stacked RGB xarray DataArray
     - List of individual red, green, blue band DataArrays
@@ -331,8 +327,7 @@ def process_each_scene_ndvi(
     For each unique scene listed in the group DF, returns a list of each scene's NDVI. 
     Optionally creates tif file for each scene's RGB, NDVI
     
-    Parameters:
-    -----------
+    Params:
     group : pandas.DataFrame
         DataFrame containing scene information
     nodata : float, optional
@@ -343,7 +338,6 @@ def process_each_scene_ndvi(
         Whether to export daily NDVI
     
     Returns:
-    --------
     List of masked NDVI arrays
     """
     allNDVIs = []
@@ -443,8 +437,7 @@ def mosaic_ndvi_timeseries(
     Given the path to a directory of LS images, creates seasonal merged and cloud masked images in the specified LS_OUT_DIR directory.
     Optionally deletes all files in the original LS_DATA_DIR
     
-    Parameters:
-    -----------
+    Params:
     LS_DATA_DIR : str
         Input directory with Landsat scenes
     VALID_LAYERS : List[str]
@@ -454,7 +447,7 @@ def mosaic_ndvi_timeseries(
     NODATA : float, optional
         No data value
     MAKE_RGB : bool, optional
-        Create RGB images
+        Create RGB images for each scene
     MAKE_DAILY_NDVI : bool, optional
         Export daily NDVI images
     """

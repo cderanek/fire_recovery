@@ -116,7 +116,10 @@ if __name__ == '__main__':
         )
 
         # Plot time series for 30 randomly selected pixels
-        # TODO
+        plot_random_sampled_pt(
+            recovery_da, 
+            summary_df 
+            file_paths['PLOTS_DIR'])
     
 
     #### UPDATE LOG FILE ####
