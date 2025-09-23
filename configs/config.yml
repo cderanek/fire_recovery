@@ -4,6 +4,7 @@ ROI: 'data/ROI/california.shp'
 
 
 ### TEST SETTINGS ####
+SENSITIVITY_ANALYSIS: False
 TESTING: True
 TEST_ROI: 'data/test_data/test_ROIS_pts/shulightning_deerlick_ROI.shp'
 TEST_FIRE: '20140726_376750_1197830' # El Portal WUMI ID
@@ -60,7 +61,7 @@ LANDSAT:
     'L08.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
     'L09.002': ['SR_B5', 'SR_B4', 'SR_B3', 'SR_B2', 'QA_PIXEL']
   DEFAULT_NODATA: -9999
-  NUM_YRS_PER_REQUEST: 3
+  NUM_YRS_PER_REQUEST: 5
 
 
 ### GET_BASELAYERS ####
@@ -122,3 +123,31 @@ BASELAYERS:
   groupings: 
     fname: 'data/baselayers/merged/annual_veg_grouping.nc'
     summary_csv: 'data/baselayers/merged/annual_veg_groupings_summary.csv'
+
+
+### SENSITIVITY ANALYSIS PARAMETERS ####
+SENSITIVITY:
+  MIN_SEASONS: {
+    'Default': 4, 
+    'Range': [4, 6, 8]
+  }
+  ELEV_BANDS_METERS: {
+    'Default': 500,
+    'Range': [250, 500, 1000]
+  }
+  NUM_NDVI_GROUPS: {
+    'Default': 3,
+    'Range': [2, 3, 5]
+  }
+  YRS_PREFIRE_MATCHED: {
+    'Default': 5,
+    'Range': [3, 5, 10]
+  }
+  MIN_NUM_MATCHED_PIXELS:  {
+    'Default': 250,
+    'Range': [100, 250, 500]
+  }
+  MIN_TEMPORAL_COVERAGE_RATIO:  {
+    'Default': 0.8,
+    'Range': [0.5, 0.8, 0.9]
+  }
