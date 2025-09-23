@@ -67,11 +67,15 @@ if __name__ == '__main__':
         ndvi_thresholds_da, 
         min_seasons=config['RECOVERY_PARAMS']['MIN_SEASONS']
     )
-    
+
+    # save printout to summary txt file
+    with open(file_paths['OUT_MERGED_THRESHOLD_NC'].replace('.nc', '_summary.txt'), 'w') as f:
+        print(recovery_da, file=f)
+
     # Export outputs to nc, tif
     if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: 
-        recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery
-    
+        recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery 
+            
     for coord, (fname, dtype, nodata) in file_paths['OUT_TIFS_D'].items():
         try:
             out_data = recovery_da.coords[coord]

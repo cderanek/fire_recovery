@@ -139,6 +139,50 @@ def download_landsat_bundle(bundle, task_id, head, dest_dir):
         print(f'Error downloading files for {dest_dir}. Error: {e}', flush=True)
         return np.nan
 
+    # Also, double check you can open all the expected tifs
+    for fileid, filename in files.items():
+        if ('tif' in filename):
+            try:
+                filepath = os.path.join(dest_dir, filename)
+                with rxr.open_rasterio(filepath) as r:
+                    pass # just checking it opens
+
+            except Exception as e:
+                print(f'Failed to open {filename}. Error: {e}')
+                print('Retrying download')
+                download_single_file(fileid, filename, bundle, task_id, head, dest_dir)
+
+
+
+def download_single_file(fileid, filename, bundle, task_id, head, dest_dir):
+    try:
+        # Fill dictionary with file_id as keys and file_name as values
+        if type(bundle)==type('s'): bundle = json.loads(bundle)
+
+        # Try to redownload this file, if tif or nc
+        if ('tif' in filename) or ('nc' in filename):
+            dl = stream_bundle_file(task_id, head, fileid)
+                
+            # Create dir to store downloaded data, if it doesn't exist
+            if filename.endswith('.tif'):
+                filename = filename.split('/')[1]
+            else:
+                filename = filename
+            filepath = os.path.join(dest_dir, filename)
+            os.makedirs(dest_dir, exist_ok=True)
+                    
+            # Write data 
+            with open(filepath, 'wb') as f: 
+                for data in dl.iter_content(chunk_size=8192): f.write(data) 
+            
+            print('Downloaded files can be found at: {}'.format(dest_dir), flush=True)
+            
+        return dest_dir
+    
+    except Exception as e:
+        print(f'Error downloading file {filename} for {dest_dir}. Error: {e}', flush=True)
+        return np.nan
+
 
 def create_product_request_json(task_name: str, start_date:str, end_date:str, shp_file_path:str, product_layers:dict, file_type:str='geotiff'):
     """

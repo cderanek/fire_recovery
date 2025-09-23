@@ -38,8 +38,10 @@ def create_download_log(args):
             'mosaic_tries_left': 5
         })
 
-    # if download log exists, reset any rows that were created >24hrs ago, but download not completed
+    # if download log exists already
     else:
+        # FOR YEAR GROUPS WHERE DOWNLOAD DIDN'T COMPLETE
+        # reset any rows that were created >24hrs ago, but download not completed
         df = pd.read_csv(args['download_log_csv'])
         df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
@@ -78,7 +80,7 @@ def create_download_log(args):
     return df
 
 
-def process_all_years(args: dict) -> dict:
+def process_all_years(args: dict):
     # cleanup file names for task submission
     roi_path = args['bufferedfireShpPath']
     cleaned_roi_path = re.sub(r'[^a-zA-Z0-9_-]', '', os.path.basename(roi_path))
@@ -132,14 +134,14 @@ def process_all_years(args: dict) -> dict:
             print(f'Pinging appears for year: {start_year}; task_id: {task_id}')
             head = {'Authorization': head}
             task_complete = ping_appears_once(task_id, head)
-            print(f'ping response: {task_complete}')
+            print(f'ping response: {task_complete}', flush=True)
             time.sleep(SLEEP_TIME) # to enforce sleep time between requests
             if task_complete:
                 # try to download bundles 
                 print('task complete')
                 bundle = try_get_bundle_once(task_id, head)
+                print('received bundle')
                 time.sleep(SLEEP_TIME) # to enforce sleep time between requests
-                print(bundle)
 
                 # Update download log
                 if bundle:
@@ -176,22 +178,31 @@ def process_all_years(args: dict) -> dict:
                 # Update download log
                 download_log.loc[index, 'ndvi_mosaic_complete'] = True
 
+                # Update final results report
+                report_results(args)
+
             except Exception as e:
                 # Update mosaic_tries_left on download log
                 print(f'Failed to mosaic from {dest_dir}.')
                 print(e)
                 download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
 
-        # Update count of successful, unsuccessful years
-        successful_years = download_log['start_year'][download_log['ndvi_mosaic_complete']==True]
-        unsuccessful_years_w_retries = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
 
-    failed_years = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False)]
+def get_successful_failed_years(seasonal_dir, desired_years_range):
+    successful_years, failed_years = [], []
+    for year in desired_years_range:
+        mosaiced = []
+        for season in ['01', '02', '03', '04']:
+            mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
+            if len(mosaiced)==4: successful_years.append(year)
+            else: failed_years.append(year)
+
     return successful_years, failed_years
 
 
-def report_results(successful_years, failed_years, args):
+def report_results(args):
     # list successful/unsuccessful years downloads
+    successful_years, failed_years = get_successful_failed_years(args['ls_seasonal_dir'], args['years_range'])
     if len(failed_years) == 0: 
         download_status='Complete'
     else: 
@@ -262,7 +273,4 @@ if __name__ == "__main__":
         print(key, val, flush=True)
     
     # process all years with parallel workers (will skip any years that were successfully downloaded prior)
-    successful_years, failed_years = process_all_years(args)
-
-    # Print, store results summary
-    report_results(successful_years, failed_years, args)
+    process_all_years(args)
