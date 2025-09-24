@@ -127,27 +127,33 @@ BASELAYERS:
 
 ### SENSITIVITY ANALYSIS PARAMETERS ####
 SENSITIVITY:
-  MIN_SEASONS: {
-    'Default': 4, 
-    'Range': [4, 6, 8]
-  }
-  ELEV_BANDS_METERS: {
-    'Default': 500,
-    'Range': [250, 500, 1000]
-  }
-  NUM_NDVI_GROUPS: {
-    'Default': 3,
-    'Range': [2, 3, 5]
-  }
-  YRS_PREFIRE_MATCHED: {
-    'Default': 5,
-    'Range': [3, 5, 10]
-  }
-  MIN_NUM_MATCHED_PIXELS:  {
-    'Default': 250,
-    'Range': [100, 250, 500]
-  }
-  MIN_TEMPORAL_COVERAGE_RATIO:  {
-    'Default': 0.8,
-    'Range': [0.5, 0.8, 0.9]
-  }
+  merged_recovery_fireids_h: 'data/baselayers/manual_downloads/recovery_map_coverage_v1/merged_UID_h.tif'
+  merged_recovery_fireids_to: 'data/baselayers/manual_downloads/recovery_map_coverage_v1/merged_UID_to.tif'
+  merged_recovery_fireids_csv: 'data/baselayers/manual_downloads/recovery_map_coverage_v1/uid_fire_incidID.csv'
+  output_sensitivity_selected_csv: 'data/baselayers/manual_downloads/WUMI2024a/WUMI2024a_final_wildfire_lists/WUMI2024a_wildfires_1984_2024_with_subfires_sensitivity.csv'
+  plots_dir: 'results/sensitivity_analyses/'
+  PARAMS:
+    MIN_SEASONS: {
+      'Default': 4, 
+      'Range': [4, 6, 8]
+    }
+    ELEV_BANDS_METERS: {
+      'Default': 500,
+      'Range': [250, 500, 1000]
+    }
+    NUM_NDVI_GROUPS: {
+      'Default': 3,
+      'Range': [2, 3, 5]
+    }
+    YRS_PREFIRE_MATCHED: {
+      'Default': 5,
+      'Range': [3, 5, 10]
+    }
+    MIN_NUM_MATCHED_PIXELS:  {
+      'Default': 250,
+      'Range': [100, 250, 500]
+    }
+    MIN_TEMPORAL_COVERAGE_RATIO:  {
+      'Default': 0.8,
+      'Range': [0.5, 0.8, 0.9]
+    }

@@ -14,14 +14,22 @@ from merge_process_scenes import mosaic_ndvi_timeseries
 from geo_utils import buffer_firepoly
 SLEEP_TIME = 60*2 # 2min pause between pings
 
+
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def create_download_log(args):
     # if download log doesn't exist, create it
     if not os.path.exists(args['download_log_csv']):
         print(f'Making new {args['download_log_csv']}')
         years_range = list(args['years_range'])
-        start_years = list(range(years_range[0], years_range[-1], args['num_yrs_per_request']))
-        end_years = [yr-1 for yr in start_years[1:]] + [years_range[-1]]
+        current_year = datetime.now().year
+        if years_range[-1] != current_year:
+            start_years = list(range(years_range[0], years_range[-1], args['num_yrs_per_request']))
+            end_years = [yr-1 for yr in start_years[1:]] + [years_range[-1]]
+        else: # make separate requests for more recent years -- more likely to fail
+            start_years = list(range(years_range[0], current_year-2, args['num_yrs_per_request'])) + [current_year-1, current_year]
+            end_years = [yr-1 for yr in start_years[1:]] + [current_year]
+        print(start_years, flush=True)
+        print(end_years, flush=True)
         df = pd.DataFrame({
             'start_year': start_years, 
             'end_year': end_years,
@@ -41,14 +49,14 @@ def create_download_log(args):
     # if download log exists already
     else:
         # FOR YEAR GROUPS WHERE DOWNLOAD DIDN'T COMPLETE
-        # reset any rows that were created >24hrs ago, but download not completed
+        # reset any rows that were created >28days ago, but download not completed
         df = pd.read_csv(args['download_log_csv'])
         df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['mosaic_tries_left'] = 5 # reset mosaic tries left
         df['download_bundle_tries_left'] = 5 # reset download bundle tries left
         now = datetime.now()
-        cutoff = now - timedelta(hours=24)
+        cutoff = now - timedelta(days=28)
 
         reset_download_rows = (
             (df['download_complete'] == False) &
@@ -75,10 +83,61 @@ def create_download_log(args):
         'mosaic_tries_left': 'int'
     })
 
+    # make sure failed/successful year results are up-to-date
+    successful_years, unsuccessful_years = report_results(args)
+
+    # if all years between start and end are successfully mosaiced, update download_complete and ndvi_mosaic_complete to be True
+    for index, (start_year, end_year) in df[['start_year', 'end_year']].iterrows():
+        allyrs = list(range(start_year, end_year+1))
+        if sum([yr in unsuccessful_years for yr in allyrs]) == 0:
+            df.loc[index, 'download_complete'] = True
+            df.loc[index, 'ndvi_mosaic_complete'] = True
+
     os.makedirs(os.path.dirname(args['download_log_csv']), exist_ok=True)
     df.to_csv(args['download_log_csv'], index=False)
     return df
 
+
+def get_successful_failed_years(seasonal_dir, desired_years_range):
+    successful_years, failed_years = [], []
+    for year in desired_years_range:
+        mosaiced = []
+        for season in ['01', '02', '03', '04']:
+            mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
+        if len(mosaiced)==4: successful_years.append(year)
+        else: failed_years.append(year)
+
+    return successful_years, failed_years
+
+
+def report_results(args):
+    # list successful/unsuccessful years downloads
+    successful_years, failed_years = get_successful_failed_years(args['ls_seasonal_dir'], args['years_range'])
+    if len(failed_years) == 0: 
+        download_status='Complete'
+    else: 
+        download_status='Failed'
+    
+    # update submissions organizer csv
+    lock_file = args['progress_log_csv'] + '.lock'
+    lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
+    try:
+        with lock:
+            csv = pd.read_csv(args['progress_log_csv'])
+               
+            # update row associated with just completed downloads
+            mask = csv['fireid'] == args['fireid']
+            csv.loc[mask, 'download_status'] = download_status
+            csv.loc[mask, 'successful_years'] = str(successful_years)
+            csv.loc[mask, 'failed_years'] = str(failed_years)
+            
+        # Save the updated csv
+        csv.to_csv(args['progress_log_csv'], index=False)
+        
+    except filelock.Timeout:
+        print("Could not acquire lock on file after waiting", flush=True)
+
+    return successful_years, failed_years
 
 def process_all_years(args: dict):
     # cleanup file names for task submission
@@ -87,7 +146,7 @@ def process_all_years(args: dict):
 
     # create log to hold headers, task_ids, download status for all jobs
     download_log = create_download_log(args)
-    unsubmitted_years_df = download_log[['start_year', 'end_year']][download_log['task_submitted_time'].isna()]
+    unsubmitted_years_df = download_log[['start_year', 'end_year']][(download_log['task_submitted_time'].isna()) & (download_log['ndvi_mosaic_complete']==False)]
     
     # submit a task for all years
     for index, (start_year, end_year) in unsubmitted_years_df.iterrows():
@@ -123,7 +182,6 @@ def process_all_years(args: dict):
     print(f'Download log after submitting all tasks: {download_log}', flush=True)
 
     # keep working on download until all years complete
-    successful_years = download_log['start_year'][download_log['ndvi_mosaic_complete']==True]
     unsuccessful_years_w_retries = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
     while len(unsuccessful_years_w_retries) >= 1:
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}', flush=True)
@@ -188,46 +246,6 @@ def process_all_years(args: dict):
                 download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
 
 
-def get_successful_failed_years(seasonal_dir, desired_years_range):
-    successful_years, failed_years = [], []
-    for year in desired_years_range:
-        mosaiced = []
-        for season in ['01', '02', '03', '04']:
-            mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
-            if len(mosaiced)==4: successful_years.append(year)
-            else: failed_years.append(year)
-
-    return successful_years, failed_years
-
-
-def report_results(args):
-    # list successful/unsuccessful years downloads
-    successful_years, failed_years = get_successful_failed_years(args['ls_seasonal_dir'], args['years_range'])
-    if len(failed_years) == 0: 
-        download_status='Complete'
-    else: 
-        download_status='Failed'
-    
-    # update submissions organizer csv
-    lock_file = args['progress_log_csv'] + '.lock'
-    lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
-    try:
-        with lock:
-            csv = pd.read_csv(args['progress_log_csv'])
-               
-            # update row associated with just completed downloads
-            mask = csv['fireid'] == args['fireid']
-            csv.loc[mask, 'download_status'] = download_status
-            csv.loc[mask, 'successful_years'] = str(successful_years)
-            csv.loc[mask, 'failed_years'] = str(failed_years)
-            
-        # Save the updated csv
-        csv.to_csv(args['progress_log_csv'], index=False)
-        
-    except filelock.Timeout:
-        print("Could not acquire lock on file after waiting", flush=True)
-
-
 
 if __name__ == "__main__":
     print(f'Running main_landsat_download.py with arguments {'\n'.join(sys.argv)}\n')
@@ -258,7 +276,7 @@ if __name__ == "__main__":
         'rgb_bands_dict': config['LANDSAT']['RGB_BANDS_DICT'],
         'num_yrs_per_request': config['LANDSAT']['NUM_YRS_PER_REQUEST'],
         'fire_yr': fire_metadata['FIRE_YEAR'],
-        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 2025),
+        'years_range': range(fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), datetime.now().year+1),
         'make_daily_rgb': True,
         'make_daily_ndvi': False
     }
