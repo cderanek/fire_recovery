@@ -1,7 +1,7 @@
 import xarray as xr
 import pandas as pd
 
-from typing import Callable, Tuple, Dict, Union
+from typing import Callable, Tuple, Dict, Union, List
 import warnings
 from functools import reduce
 

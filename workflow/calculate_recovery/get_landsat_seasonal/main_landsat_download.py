@@ -4,7 +4,7 @@ import filelock
 from functools import partial
 from datetime import datetime, timedelta
 
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 NumericType = Union[int, float]
 RangeType = Tuple[NumericType, NumericType]    
 
@@ -12,27 +12,54 @@ sys.path.append("workflow/utils/")
 from earthaccess_downloads import *
 from merge_process_scenes import mosaic_ndvi_timeseries
 from geo_utils import buffer_firepoly
+
+LANDSAT_BAD_DATE = datetime(2024, 6, 8)
 SLEEP_TIME = 60*2 # 2min pause between pings
 
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
+def skip_bad_dates(
+    start_dates: List[datetime], 
+    end_dates: List[datetime], 
+    bad_date: datetime = LANDSAT_BAD_DATE
+    ):
+    '''Given a range of start/end dates, for any download request that would span the bad date,
+    split that request into 2 requests -- skipping over the bad date.
+    '''
+    new_start_dates, new_end_dates = [], []
+
+    for start_date, end_date in zip(start_dates, end_dates):
+        if start_date < bad_date < end_date:
+            # split the date range to end the day before the bad date,
+            # and then start back up 1 day after the bad date
+            new_start_dates.append(start_date)
+            new_end_dates.append(bad_date - timedelta(days=1))
+            new_start_dates.append(bad_date + timedelta(days=1))
+            new_end_dates.append(end_date)
+
+        else:
+            # keep the original date range
+            new_start_dates.append(start_date)
+            new_end_dates.append(end_date)
+
+    return new_start_dates, new_end_dates
+
+
 def create_download_log(args):
     # if download log doesn't exist, create it
     if not os.path.exists(args['download_log_csv']):
         print(f'Making new {args['download_log_csv']}')
         years_range = list(args['years_range'])
-        current_year = datetime.now().year
-        if years_range[-1] != current_year:
-            start_years = list(range(years_range[0], years_range[-1], args['num_yrs_per_request']))
-            end_years = [yr-1 for yr in start_years[1:]] + [years_range[-1]]
-        else: # make separate requests for more recent years -- more likely to fail
-            start_years = list(range(years_range[0], current_year-2, args['num_yrs_per_request'])) + [current_year-1, current_year]
-            end_years = [yr-1 for yr in start_years[1:]] + [current_year]
-        print(start_years, flush=True)
-        print(end_years, flush=True)
+        start_years = range(years_range[0], years_range[-1], args['num_yrs_per_request'])
+        start_dates = list(f'01-01-{year}' for year in start_years)
+        end_dates = [f'12-31-{year-1}' for year in start_years[1:]] + [f'12-31-{years_range[-1]}']
+        start_dates, end_dates = skip_bad_dates(pd.to_datetime(start_dates), pd.to_datetime(end_dates))
+        print(start_dates, flush=True)
+        print(end_dates, flush=True)
+        
         df = pd.DataFrame({
-            'start_year': start_years, 
-            'end_year': end_years,
+            'start_date': start_dates, 
+            'end_date': end_dates,
             'dest_dir': '',
             'head': np.nan, 
             'task_id': np.nan, 
@@ -66,10 +93,12 @@ def create_download_log(args):
         print(f'reset download rows: {reset_download_rows}')
         cols_to_reset = ['head', 'task_id', 'bundle', 'task_submitted_time', 'bundle_received_time']
         df.loc[reset_download_rows, cols_to_reset] = np.nan
-        
+
+    df['start_date'] = pd.to_datetime(df['start_date'], errors='coerce')
+    df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
     df = df.astype({
-        'start_year': 'int', 
-        'end_year': 'int',
+        'start_date': 'object', 
+        'end_date': 'object',
         'dest_dir': 'str',
         'head': 'object', 
         'task_id': 'object', 
@@ -87,7 +116,8 @@ def create_download_log(args):
     successful_years, unsuccessful_years = report_results(args)
 
     # if all years between start and end are successfully mosaiced, update download_complete and ndvi_mosaic_complete to be True
-    for index, (start_year, end_year) in df[['start_year', 'end_year']].iterrows():
+    for index, (start_date, end_date) in df[['start_date', 'end_date']].iterrows():
+        start_year, end_year = start_date.year, end_date.year
         allyrs = list(range(start_year, end_year+1))
         if sum([yr in unsuccessful_years for yr in allyrs]) == 0:
             df.loc[index, 'download_complete'] = True
@@ -100,11 +130,14 @@ def create_download_log(args):
 
 def get_successful_failed_years(seasonal_dir, desired_years_range):
     successful_years, failed_years = [], []
+    curr_yr_expected_seasons = np.floor((4*datetime.now().month)/12.0)
     for year in desired_years_range:
         mosaiced = []
         for season in ['01', '02', '03', '04']:
             mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
+
         if len(mosaiced)==4: successful_years.append(year)
+        elif (year == int(datetime.now().year)) and (len(mosaiced) >= curr_yr_expected_seasons): successful_years.append(year)
         else: failed_years.append(year)
 
     return successful_years, failed_years
@@ -146,20 +179,29 @@ def process_all_years(args: dict):
 
     # create log to hold headers, task_ids, download status for all jobs
     download_log = create_download_log(args)
-    unsubmitted_years_df = download_log[['start_year', 'end_year']][(download_log['task_submitted_time'].isna()) & (download_log['ndvi_mosaic_complete']==False)]
+    unsubmitted_years_df = download_log[['start_date', 'end_date']][(download_log['task_submitted_time'].isna()) & (download_log['ndvi_mosaic_complete']==False)]
     
     # submit a task for all years
-    for index, (start_year, end_year) in unsubmitted_years_df.iterrows():
-        start_date=f'01-01-{start_year}'
-        end_date=f'12-31-{end_year}'
-        task_name = f'LS_{start_date}_{end_date}_{cleaned_roi_path}'
-        dest_dir = os.path.join(args['ls_data_dir'], task_name)
+    for index, (start_date, end_date) in unsubmitted_years_df.iterrows():
+        start_date_str=f'{start_date.month}-{start_date.day}-{start_date.year}'
+        end_date_str=f'{end_date.month}-{end_date.day}-{end_date.year}'
+        task_name = f'LS_{start_date_str}_{end_date_str}_{cleaned_roi_path}'
+
+        # for the task spanning the bad date, need to output 2 tasks to the same data dir to avoid splitting up data from the same year
+        if (end_date.month != 12) or (end_date.day != 31): # bad year start of split
+            next_end_date = download_log.loc[index+1, 'end_date']
+            next_end_date_str=f'{next_end_date.month}-{next_end_date.day}-{next_end_date.year}'
+            dest_dir = os.path.join(args['ls_data_dir'], f'LS_{start_date_str}_{next_end_date_str}_{cleaned_roi_path}')
+        if (start_date.month != 1) or (start_date.day != 1): # bad year end of split
+            dest_dir = download_log.loc[index-1, 'dest_dir']
+        else: # regular case
+            dest_dir = os.path.join(args['ls_data_dir'], task_name)
         print(f'Dest dir {dest_dir}')
 
         task_json = create_product_request_json(
             task_name=task_name,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date_str,
+            end_date=end_date_str,
             shp_file_path=roi_path,
             product_layers=args['product_layers'],
             file_type='geotiff'
@@ -182,14 +224,14 @@ def process_all_years(args: dict):
     print(f'Download log after submitting all tasks: {download_log}', flush=True)
 
     # keep working on download until all years complete
-    unsuccessful_years_w_retries = download_log['start_year'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
+    unsuccessful_years_w_retries = download_log['start_date'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
     while len(unsuccessful_years_w_retries) >= 1:
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}', flush=True)
         download_log.to_csv(args['download_log_csv'], index=False)
         # for each task with no bundle, ping appeears, and if ready, get bundle
-        nodbundle_years_df = download_log[['start_year', 'task_id', 'head']][(download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
-        for index, (start_year, task_id, head) in nodbundle_years_df.iterrows():
-            print(f'Pinging appears for year: {start_year}; task_id: {task_id}')
+        nodbundle_years_df = download_log[['start_date', 'task_id', 'head']][(download_log['ndvi_mosaic_complete']==False) & (download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
+        for index, (start_date, task_id, head) in nodbundle_years_df.iterrows():
+            print(f'Pinging appears for start date: {start_date}; task_id: {task_id}')
             head = {'Authorization': head}
             task_complete = ping_appears_once(task_id, head)
             print(f'ping response: {task_complete}', flush=True)
@@ -209,9 +251,9 @@ def process_all_years(args: dict):
                     download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
 
         # for each task with a bundle, but incomplete download, try to download bundle
-        incompletedownload_years_df = download_log[['start_year', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['download_complete']==False) & (download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
-        for index, (start_year, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            print(f'Downloading bundle with start year: {start_year}; task_id: {task_id}')
+        incompletedownload_years_df = download_log[['start_date', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['ndvi_mosaic_complete']==False) & (download_log['download_complete']==False) & (download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
+        for index, (start_date, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
+            print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}')
             head = {'Authorization': head}
             # try to download bundle
             dest_dir_complete = None
@@ -224,9 +266,9 @@ def process_all_years(args: dict):
                 download_log.loc[index, 'download_bundle_tries_left'] = download_log.loc[index, 'download_bundle_tries_left'] - 1
         
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic
-        incomplete_mosaic_df = download_log[['start_year', 'end_year', 'dest_dir']][(download_log['download_complete']==True) & (download_log['ndvi_mosaic_complete']==False) & (download_log['mosaic_tries_left']>0)]
-        for index, (start_year, end_year, dest_dir) in incomplete_mosaic_df.iterrows():
-            print(f'Starting seasonal mosaic for: {start_year}; dest_dir: {dest_dir}')
+        incomplete_mosaic_df = download_log[['start_date', 'end_date', 'dest_dir']][(download_log['download_complete']==True) & (download_log['ndvi_mosaic_complete']==False) & (download_log['mosaic_tries_left']>0)]
+        for index, (start_date, end_date, dest_dir) in incomplete_mosaic_df.iterrows():
+            print(f'Starting seasonal mosaic for: {start_date}; dest_dir: {dest_dir}')
             try:
                 mosaic_ndvi_timeseries(
                     dest_dir, args['valid_layers'], args['ls_seasonal_dir'], NODATA=args['default_nodata'], 

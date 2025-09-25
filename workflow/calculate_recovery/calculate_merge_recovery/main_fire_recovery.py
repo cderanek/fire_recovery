@@ -1,4 +1,5 @@
 import sys, filelock, glob, json
+import copy
 import pandas as pd
  
 from data_merger import create_fire_datacube
@@ -37,94 +38,148 @@ if __name__ == '__main__':
         sys.exit(1)
     
 
-    #### LOAD + MERGE DATA ####
-    # Load rasters and create merged NDVI dataset + get associated groupings dict
-    combined_ndvi = create_fire_datacube(
-        config=config,
-        fire_metadata=fire_metadata,
-        file_paths=file_paths
-    )
-    if config['CREATE_INTERMEDIATE_TIFS']: combined_ndvi.to_netcdf(file_paths['OUT_MERGED_NDVI_NC'], format='NETCDF4') # Optional: output intermediate .nc
+    #### GENERATE ALL PARAMS FOR SENSITIVITY ANALYSIS ####
+    all_param_combos = [] # create a list of dictionaries with all param values combos + the assocated file suffix
 
-    # Process NDVI thresholds and create summary of thresholds over time for each group
-    ndvi_thresholds_da, summary_df = calculate_ndvi_thresholds(
-        combined_ndvi,
-        config        
-    )
-    summary_df.to_csv(file_paths['OUT_SUMMARY_CSV'])
-
-
-    #### CALCULATE RECOVERY ####
-    # Update ndvi_thresholds dataarray to have layers to flag QA issues
-    ndvi_thresholds_da =  temporal_coverage_check(
-        ndvi_thresholds_da, 
-        config, 
-        fire_metadata
-    )
+    if perfire_config_path['SENSITIVITY_ANALYSIS']:  # update all param combos to include all param combos, if this fire is being used for sensitivity tests
+        for curr_param in config['SENSITIVITY']['PARAMS'].keys():
+            for curr_value in config['SENSITIVITY']['PARAMS'][curr_param]['Range']:
+                if curr_value != config['SENSITIVITY']['PARAMS'][curr_param]['Default']:
+                    param_d = {param: config['SENSITIVITY']['PARAMS'][param]['Default'] for param in config['SENSITIVITY']['PARAMS'].keys()}
+                    param_d[curr_param] = curr_value
+                    suffix = f'{curr_param}_{curr_value}'
+                    param_d['suffix'] = suffix
+                    all_param_combos.extend(param_d)
+        # add default configuration
+        param_d = {param: config['SENSITIVITY']['PARAMS'][param]['Default'] for param in config['SENSITIVITY']['PARAMS'].keys()}
+        param_d['suffix'] = '' # default values, suffix is empty string
+        all_param_combos.extend(param_d)
     
-    # Calculate recovery time using NDVI and thresholds timeseries
-    recovery_da = calculate_recovery_time(
-        ndvi_thresholds_da, 
-        min_seasons=config['RECOVERY_PARAMS']['MIN_SEASONS']
-    )
+    else: # just use current configuration if not in sensitivity analysis fire
+        param_d = {param: config['RECOVERY_PARAMS'][param] for param in config['SENSITIVITY']['PARAMS'].keys()}
+        param_d['suffix'] = '' # default values, suffix is empty string
+        all_param_combos.extend(param_d)
+    
+    #### CALCULATE RECOVERY FOR ALL PARAMS IN SENSITIVITY ANALYSIS ####  
+    # Update config and file_paths dicts to match the current set of params
+    orig_file_paths = copy.deepcopy(file_paths)
 
-    # save printout to summary txt file
-    with open(file_paths['OUT_MERGED_THRESHOLD_NC'].replace('.nc', '_summary.txt'), 'w') as f:
-        print(recovery_da, file=f)
-
-    # Export outputs to nc, tif
-    if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: 
-        recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery 
-            
-    for coord, (fname, dtype, nodata) in file_paths['OUT_TIFS_D'].items():
-        try:
-            out_data = recovery_da.coords[coord]
-            if 'recovery.tif' in fname or 'resilience' in fname:
-                out_data_clipped = clip_raster_to_poly(out_data, fire_metadata['FIRE_BOUNDARY_PATH'])
-                
-                export_to_tiff(
-                    out_data_clipped, 
-                    fname.replace('.tif', '_clipped.tif'), 
-                    dtype_out=dtype, 
-                    NODATA=nodata
-                ) 
-            
-            export_to_tiff(
-                out_data, 
-                fname, 
-                dtype_out=dtype, 
-                NODATA=nodata
-            )                                   # export just recovery layer to tif
+    for param_d in all_param_combos:
+        # Update config to match the current set of params
+        for param_name, param_val in param_d.keys():
+            if param_name != 'suffix': config['RECOVERY_PARAMS'][param_name] = param_val
         
-        except Exception as e:
-            print(coord, fname, dtype)
-            print(f'Skipping tif output for {coord} due to error: {e}')
-    
-    # Create a summary of the recovery time across all pixels without future disturbances
-    single_fire_recoverytime_summary(
-        recovery_da, 
-        config,
-        fire_metadata,
-        file_paths
-    )
+        # Update file_paths config to match the current set of params
+        suffix = param_d['suffix']
+
+        for out_tifs_name in orig_file_paths['OUT_TIFS_D'].keys():
+            old_dir = os.path.dirname(orig_file_paths['OUT_TIFS_D'][out_tifs_name][0])
+            old_fname = os.path.basename(orig_file_paths['OUT_TIFS_D'][out_tifs_name][0])
+            file_paths['OUT_TIFS_D'][out_tifs_name][0] = os.path.join(old_dir, f'{suffix}/', old_fname)
+
+        for f in ['OUT_MAPS_DATA_DIR_PATH', 'RECOVERY_COUNTS_SUMMARY_CSV', 'PLOTS_DIR', 'OUT_MERGED_NDVI_NC', 'OUT_SUMMARY_CSV', 'OUT_MERGED_THRESHOLD_NC']:
+            old_dir = os.path.dirname(orig_file_paths[f])
+            old_fname = os.path.basename(orig_file_paths[f])
+            file_paths[f] = os.path.join(old_dir, f'{suffix}/', old_fname)
+
+        # Save params to text file in the new OUT_MAPS_DATA_DIR_PATH
+        with open(os.path.join(file_paths['OUT_MAPS_DATA_DIR_PATH'], 'params.txt'), 'r') as f:
+            json.dumps(param_d)
+
+        #### LOAD + MERGE DATA ####
+        # Load rasters and create merged NDVI dataset + get associated groupings dict
+        combined_ndvi = create_fire_datacube(
+            config=config,
+            fire_metadata=fire_metadata,
+            file_paths=file_paths
+        )
+        if config['CREATE_INTERMEDIATE_TIFS']: combined_ndvi.to_netcdf(file_paths['OUT_MERGED_NDVI_NC'], format='NETCDF4') # Optional: output intermediate .nc
+
+        # Process NDVI thresholds and create summary of thresholds over time for each group
+        ndvi_thresholds_da, summary_df = calculate_ndvi_thresholds(
+            combined_ndvi,
+            config        
+        )
+        summary_df.to_csv(file_paths['OUT_SUMMARY_CSV'])
 
 
-    #### VISUALIZATIONS ####
-    if config['RECOVERY_PARAMS']['MAKE_PLOTS']:
-        # Plot median time series for each group
-        plot_time_series(
-            summary_df,
-            fire_metadata['FIRE_DATE'],
-            file_paths['PLOTS_DIR'],
-            config['MIN_NUM_MATCHED_PIXELS']
+        #### CALCULATE RECOVERY ####
+        # Update ndvi_thresholds dataarray to have layers to flag QA issues
+        ndvi_thresholds_da =  temporal_coverage_check(
+            ndvi_thresholds_da, 
+            config, 
+            fire_metadata
+        )
+        
+        # Calculate recovery time using NDVI and thresholds timeseries
+        recovery_da = calculate_recovery_time(
+            ndvi_thresholds_da, 
+            config
         )
 
-        # Plot time series for 30 randomly selected pixels
-        plot_random_sampled_pt(
+        # save printout to summary txt file
+        with open(file_paths['OUT_MERGED_THRESHOLD_NC'].replace('.nc', '_summary.txt'), 'w') as f:
+            print(recovery_da, file=f)
+
+        # Export outputs to nc, tif
+        if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: 
+            recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery 
+                
+        for coord, (fname, dtype, nodata) in file_paths['OUT_TIFS_D'].items():
+            # skip outputting the following layers if we're not in the default settings
+            # these layers are independent of the params, so don't need to be saved for every param combination
+            if suffix!='' and coord in ['severity', 'dist_mask', 'future_dist_agdev_mask', 'past_dist_agdev_mask', 'elevation', 'evt']:
+                pass 
+
+            else:
+                try:
+                    out_data = recovery_da.coords[coord]
+                    if 'recovery.tif' in fname or 'resilience' in fname:
+                        out_data_clipped = clip_raster_to_poly(out_data, fire_metadata['FIRE_BOUNDARY_PATH'])
+                        
+                        export_to_tiff(
+                            out_data_clipped, 
+                            fname.replace('.tif', '_clipped.tif'), 
+                            dtype_out=dtype, 
+                            NODATA=nodata
+                        ) 
+                    
+                    export_to_tiff(
+                        out_data, 
+                        fname, 
+                        dtype_out=dtype, 
+                        NODATA=nodata
+                    )                                   # export just recovery layer to tif
+                
+                except Exception as e:
+                    print(coord, fname, dtype)
+                    print(f'Skipping tif output for {coord} due to error: {e}')
+        
+        # Create a summary of the recovery time across all pixels without future disturbances
+        single_fire_recoverytime_summary(
             recovery_da, 
-            summary_df,
-            file_paths['PLOTS_DIR'])
-    
+            config,
+            fire_metadata,
+            file_paths
+        )
+
+
+        #### VISUALIZATIONS ####
+        if config['RECOVERY_PARAMS']['MAKE_PLOTS']:
+            # Plot median time series for each group
+            plot_time_series(
+                summary_df,
+                fire_metadata['FIRE_DATE'],
+                file_paths['PLOTS_DIR'],
+                config['MIN_NUM_MATCHED_PIXELS']
+            )
+
+            # Plot time series for 30 randomly selected pixels
+            plot_random_sampled_pt(
+                recovery_da, 
+                summary_df,
+                file_paths['PLOTS_DIR'])
+        
 
     #### UPDATE LOG FILE ####
     lock_file = config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'] + '.lock'
@@ -155,7 +210,7 @@ if __name__ == '__main__':
         
     
     landsat_dir = file_paths['INPUT_LANDSAT_DATA_DIR']
-    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS']:
+    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not perfire_config_path['SENSITIVITY_ANALYSIS']:
         for folder in glob.glob(f'{landsat_dir}LS_01-01-*'):
             if os.path.isdir(folder):
                 print('will delete:', f'rm -r {folder}')
