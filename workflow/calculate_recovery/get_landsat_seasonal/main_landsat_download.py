@@ -225,7 +225,7 @@ def process_all_years(args: dict):
 
     # keep working on download until all years complete
     unsuccessful_years_w_retries = download_log['start_date'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
-    while len(unsuccessful_years_w_retries) >= 1:
+    while len(unsuccessful_years_w_retries) > 0:
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}', flush=True)
         download_log.to_csv(args['download_log_csv'], index=False)
         # for each task with no bundle, ping appeears, and if ready, get bundle
@@ -286,7 +286,9 @@ def process_all_years(args: dict):
                 print(f'Failed to mosaic from {dest_dir}.')
                 print(e)
                 download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
-
+        
+        # re-check the list of unsuccessful years with retries left to determine if we should keep looping
+        unsuccessful_years_w_retries = download_log['start_date'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
 
 
 if __name__ == "__main__":

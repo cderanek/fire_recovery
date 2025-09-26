@@ -41,7 +41,7 @@ if __name__ == '__main__':
     #### GENERATE ALL PARAMS FOR SENSITIVITY ANALYSIS ####
     all_param_combos = [] # create a list of dictionaries with all param values combos + the assocated file suffix
 
-    if perfire_config_path['SENSITIVITY_ANALYSIS']:  # update all param combos to include all param combos, if this fire is being used for sensitivity tests
+    if perfire_json['SENSITIVITY_ANALYSIS']:  # update all param combos to include all param combos, if this fire is being used for sensitivity tests
         for curr_param in config['SENSITIVITY']['PARAMS'].keys():
             for curr_value in config['SENSITIVITY']['PARAMS'][curr_param]['Range']:
                 if curr_value != config['SENSITIVITY']['PARAMS'][curr_param]['Default']:
@@ -210,7 +210,7 @@ if __name__ == '__main__':
         
     
     landsat_dir = file_paths['INPUT_LANDSAT_DATA_DIR']
-    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not perfire_config_path['SENSITIVITY_ANALYSIS']:
+    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not perfire_json['SENSITIVITY_ANALYSIS']:
         for folder in glob.glob(f'{landsat_dir}LS_01-01-*'):
             if os.path.isdir(folder):
                 print('will delete:', f'rm -r {folder}')

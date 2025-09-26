@@ -30,7 +30,8 @@ def create_main_config_json(config_path, out_path):
         out_data['RECOVERY_PARAMS'] = config_data['RECOVERY_PARAMS']
         out_data['LANDSAT'] = config_data['LANDSAT']
         out_data['BASELAYERS'] = config_data['BASELAYERS']
-        
+        out_data['SENSITIVITY_ANALYSIS'] = config_data['SENSITIVITY_ANALYSIS']
+        out_data['SENSITIVITY'] = config_data['SENSITIVITY']
     with open(out_path, 'w') as f:
         json.dump(out_data, f, indent=4)
 
