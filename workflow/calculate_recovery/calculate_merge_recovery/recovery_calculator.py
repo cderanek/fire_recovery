@@ -7,7 +7,7 @@ from functools import reduce
 
 
 def calculate_ndvi_thresholds(
-    combined_ndvi: xr.DataArray,
+    ndvi_da: xr.DataArray,
     config: dict) -> List[Union[xr.DataArray, pd.DataFrame]]:
     ''' returns ndvi_thresholds_da, summary_df 
     '''
@@ -17,7 +17,7 @@ def calculate_ndvi_thresholds(
     
     # Calculate the summary DF with lower/upper limits by matched groups
     grouping_band_format = config['RECOVERY_PARAMS']['GROUPING_BAND_FORMAT']
-    nlcd_vegcode_df = pd.read_csv(config['BASELAYERS']['GROUPINGS']['summary_csv'])
+    nlcd_vegcode_df = pd.read_csv(config['BASELAYERS']['groupings']['summary_csv'])
     summary_df = create_summary_csv(ndvi_da=ndvi_da,
                                     nlcd_vegcode_df=nlcd_vegcode_df,
                                     grouping_band_format=grouping_band_format
@@ -148,7 +148,7 @@ def single_fire_recoverytime_summary(
     fire_name = fire_metadata['FIRE_NAME']
     fire_date = fire_metadata['FIRE_DATE']
     out_csv = file_paths['RECOVERY_COUNTS_SUMMARY_CSV']
-    nlcd_vegcode_df = pd.read_csv(config['BASELAYERS']['GROUPINGS']['summary_csv'])
+    nlcd_vegcode_df = pd.read_csv(config['BASELAYERS']['groupings']['summary_csv'])
                     
     # Open recovery_rxr obj and mask all ag/dev and future disturbances
     # Currently, all unrecovered pixels are nans, set them to np.inf, and then mask bad pixels as nans

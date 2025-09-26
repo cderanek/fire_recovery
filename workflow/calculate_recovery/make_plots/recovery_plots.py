@@ -3,6 +3,8 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import PercentFormatter
+import os
 
 from typing import List
 
@@ -43,7 +45,7 @@ def create_density_plot(
         File name to save the plot
     """
     # Filter out NaN values
-    valid_values = values[~np.isnan(values)]
+    valid_values = group_med_ndvi_arr[~np.isnan(group_med_ndvi_arr)]
     
     # Create figure and axis
     plt.figure(figsize=(10, 6))
@@ -63,7 +65,6 @@ def create_density_plot(
     # Add labels and title
     plt.xlabel('Median pre-fire NDVI')
     plt.ylabel('Density')
-    plt.title(title)
     
     # Format y-axis as percentage
     plt.gca().yaxis.set_major_formatter(PercentFormatter(1))

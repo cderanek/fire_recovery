@@ -1,4 +1,4 @@
-import sys, filelock, glob, json
+import sys, filelock, glob, json, os
 import copy
 import pandas as pd
  
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     #### GENERATE ALL PARAMS FOR SENSITIVITY ANALYSIS ####
     all_param_combos = [] # create a list of dictionaries with all param values combos + the assocated file suffix
 
-    if perfire_json['SENSITIVITY_ANALYSIS']:  # update all param combos to include all param combos, if this fire is being used for sensitivity tests
+    if fire_metadata['SENSITIVITY_ANALYSIS']:  # update all param combos to include all param combos, if this fire is being used for sensitivity tests
         for curr_param in config['SENSITIVITY']['PARAMS'].keys():
             for curr_value in config['SENSITIVITY']['PARAMS'][curr_param]['Range']:
                 if curr_value != config['SENSITIVITY']['PARAMS'][curr_param]['Default']:
@@ -49,24 +49,26 @@ if __name__ == '__main__':
                     param_d[curr_param] = curr_value
                     suffix = f'{curr_param}_{curr_value}'
                     param_d['suffix'] = suffix
-                    all_param_combos.extend(param_d)
+                    all_param_combos.append(param_d)
         # add default configuration
         param_d = {param: config['SENSITIVITY']['PARAMS'][param]['Default'] for param in config['SENSITIVITY']['PARAMS'].keys()}
         param_d['suffix'] = '' # default values, suffix is empty string
-        all_param_combos.extend(param_d)
+        all_param_combos.append(param_d)
     
     else: # just use current configuration if not in sensitivity analysis fire
         param_d = {param: config['RECOVERY_PARAMS'][param] for param in config['SENSITIVITY']['PARAMS'].keys()}
         param_d['suffix'] = '' # default values, suffix is empty string
-        all_param_combos.extend(param_d)
+        all_param_combos.append(param_d)
     
     #### CALCULATE RECOVERY FOR ALL PARAMS IN SENSITIVITY ANALYSIS ####  
     # Update config and file_paths dicts to match the current set of params
     orig_file_paths = copy.deepcopy(file_paths)
 
     for param_d in all_param_combos:
+        print(f'Currently calculating recovery for the following params:\n{param_d}')
+        
         # Update config to match the current set of params
-        for param_name, param_val in param_d.keys():
+        for param_name, param_val in param_d.items():
             if param_name != 'suffix': config['RECOVERY_PARAMS'][param_name] = param_val
         
         # Update file_paths config to match the current set of params
@@ -75,15 +77,29 @@ if __name__ == '__main__':
         for out_tifs_name in orig_file_paths['OUT_TIFS_D'].keys():
             old_dir = os.path.dirname(orig_file_paths['OUT_TIFS_D'][out_tifs_name][0])
             old_fname = os.path.basename(orig_file_paths['OUT_TIFS_D'][out_tifs_name][0])
-            file_paths['OUT_TIFS_D'][out_tifs_name][0] = os.path.join(old_dir, f'{suffix}/', old_fname)
+            new_path = os.path.join(old_dir, f'{suffix}', old_fname)
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            file_paths['OUT_TIFS_D'][out_tifs_name][0] = new_path
 
         for f in ['OUT_MAPS_DATA_DIR_PATH', 'RECOVERY_COUNTS_SUMMARY_CSV', 'PLOTS_DIR', 'OUT_MERGED_NDVI_NC', 'OUT_SUMMARY_CSV', 'OUT_MERGED_THRESHOLD_NC']:
             old_dir = os.path.dirname(orig_file_paths[f])
             old_fname = os.path.basename(orig_file_paths[f])
-            file_paths[f] = os.path.join(old_dir, f'{suffix}/', old_fname)
+            new_path = os.path.join(old_dir, f'{suffix}', old_fname)
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            file_paths[f] = new_path
+
+        # for key in orig_file_paths.keys():
+        #     if key != 'BASELAYERS':
+        #         print(key)
+        #         print(f'ORIGINAL:\t{orig_file_paths[key]}')
+        #         try:
+        #             print(f'UPDATE:\t\t{file_paths[key]}')
+        #         except:
+        #             print()
+        #         print()
 
         # Save params to text file in the new OUT_MAPS_DATA_DIR_PATH
-        with open(os.path.join(file_paths['OUT_MAPS_DATA_DIR_PATH'], 'params.txt'), 'r') as f:
+        with open(os.path.join(file_paths['OUT_MAPS_DATA_DIR_PATH'], 'params.txt'), 'w') as f:
             json.dumps(param_d)
 
         #### LOAD + MERGE DATA ####
@@ -93,7 +109,7 @@ if __name__ == '__main__':
             fire_metadata=fire_metadata,
             file_paths=file_paths
         )
-        if config['CREATE_INTERMEDIATE_TIFS']: combined_ndvi.to_netcdf(file_paths['OUT_MERGED_NDVI_NC'], format='NETCDF4') # Optional: output intermediate .nc
+        if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: combined_ndvi.to_netcdf(file_paths['OUT_MERGED_NDVI_NC'], format='NETCDF4') # Optional: output intermediate .nc
 
         # Process NDVI thresholds and create summary of thresholds over time for each group
         ndvi_thresholds_da, summary_df = calculate_ndvi_thresholds(
@@ -210,7 +226,7 @@ if __name__ == '__main__':
         
     
     landsat_dir = file_paths['INPUT_LANDSAT_DATA_DIR']
-    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not perfire_json['SENSITIVITY_ANALYSIS']:
+    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not fire_metadata['SENSITIVITY_ANALYSIS']:
         for folder in glob.glob(f'{landsat_dir}LS_01-01-*'):
             if os.path.isdir(folder):
                 print('will delete:', f'rm -r {folder}')

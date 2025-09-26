@@ -27,22 +27,44 @@ def create_main_config_json(config_path, out_path):
     out_data = {}
     with open(config_path, 'r') as f:
         config_data = yaml.safe_load(f)
+
+        # Get ROI path for formatting output paths
+        if config['TESTING']: ROI_PATH=config['TEST_ROI']
+        else: ROI_PATH=config['ROI']
+        
+        # Save relevant parts of config
         out_data['RECOVERY_PARAMS'] = config_data['RECOVERY_PARAMS']
         out_data['LANDSAT'] = config_data['LANDSAT']
         out_data['BASELAYERS'] = config_data['BASELAYERS']
         out_data['SENSITIVITY_ANALYSIS'] = config_data['SENSITIVITY_ANALYSIS']
         out_data['SENSITIVITY'] = config_data['SENSITIVITY']
+
+        # Update file paths
+        for key in ['RECOVERY_MAPS_DIR', 'RECOVERY_PLOTS_DIR', 'RECOVERY_CONFIGS', 'LOGGING_PROCESS_CSV']:
+            config['RECOVERY_PARAMS'][key] = get_path(config['RECOVERY_PARAMS'][key], ROI_PATH)
+        
+        config['LANDSAT']['dir_name'] = get_path(config['LANDSAT']['dir_name'], ROI_PATH)
+
+        for layer in config['BASELAYERS']:
+            config['BASELAYERS'][layer]['fname'] = get_path(config['BASELAYERS'][layer]['fname'], ROI_PATH)
+        
+        config['SENSITIVITY']['plots_dir'] = get_path(config['SENSITIVITY']['plots_dir'], ROI_PATH)
+        
     with open(out_path, 'w') as f:
         json.dump(out_data, f, indent=4)
 
+    return out_data
 
-def get_fire_metadata(config, ROI_PATH, fireinfo):
+
+def get_fire_metadata(config, ROI_PATH, fireinfo, sensitivity_fireids):
     return {
+        'FIRE_ID': fireinfo['fireid'],
         'FIRE_NAME': fireinfo['name'],
         'FIRE_HA': fireinfo['burn_area_ha'],
         'FIRE_DATE': f'{fireinfo['year']}-{str.zfill(str(fireinfo['month']),2)}-{str.zfill(str(fireinfo['day']),2)}',
         'FIRE_YEAR': fireinfo['year'],
-        'FIRE_BOUNDARY_PATH': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{fireinfo['name']}_{fireinfo['fireid']}/spatialinfo/', ROI_PATH)
+        'FIRE_BOUNDARY_PATH': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{fireinfo['name']}_{fireinfo['fireid']}/spatialinfo/', ROI_PATH),
+        'SENSITIVITY_ANALYSIS': fireinfo['fireid'] in sensitivity_fireids
     }
 
 
@@ -101,7 +123,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
     }
 
 
-def create_perfire_config_json(config_path, out_path):
+def create_perfire_config_json(config_path, out_path, sensitivity_fireids):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
         
@@ -115,7 +137,7 @@ def create_perfire_config_json(config_path, out_path):
         # Get fire metadata, using WUMI csv
         out_data = {
             fireinfo['fireid']: {
-                'FIRE_METADATA': get_fire_metadata(config, ROI_PATH, fireinfo),
+                'FIRE_METADATA': get_fire_metadata(config, ROI_PATH, fireinfo, sensitivity_fireids),
                 'FILE_PATHS': get_file_paths(config, ROI_PATH, fireinfo)
                 }
             for _, fireinfo in wumi_data.iterrows()
@@ -134,11 +156,13 @@ if __name__ == '__main__':
     done_flag = sys.argv[4]
 
     # Create main config file (across all fires)
-    create_main_config_json(config_path, main_config_out)
+    config = create_main_config_json(config_path, main_config_out)
     print('created main config')
     
     # Create per-fire file paths and fire metadata dict
-    create_perfire_config_json(config_path, perfire_config_out)
+    sensitivity_df = pd.read_csv(config['SENSITIVITY']['output_sensitivity_selected_csv'])
+    sensitivity_fireids = sensitivity_df.loc[sensitivity_df['sensitivity_selected'], 'fireid']
+    create_perfire_config_json(config_path, perfire_config_out, sensitivity_fireids)
     print('created perfire config')
 
     # # DONE FLAG

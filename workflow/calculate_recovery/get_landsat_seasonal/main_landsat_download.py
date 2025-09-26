@@ -278,9 +278,6 @@ def process_all_years(args: dict):
                 # Update download log
                 download_log.loc[index, 'ndvi_mosaic_complete'] = True
 
-                # Update final results report
-                report_results(args)
-
             except Exception as e:
                 # Update mosaic_tries_left on download log
                 print(f'Failed to mosaic from {dest_dir}.')
@@ -289,7 +286,9 @@ def process_all_years(args: dict):
         
         # re-check the list of unsuccessful years with retries left to determine if we should keep looping
         unsuccessful_years_w_retries = download_log['start_date'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
-
+        
+        # Update final results report
+        report_results(args)
 
 if __name__ == "__main__":
     print(f'Running main_landsat_download.py with arguments {'\n'.join(sys.argv)}\n')
