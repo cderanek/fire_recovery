@@ -76,9 +76,9 @@ def calculate_ndvi_thresholds(
     yrs_prefire_matched = config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']
     prefire_da = ndvi_da.sel(time=slice(fire_date - pd.Timedelta(weeks=52*yrs_prefire_matched), fire_date)).copy(deep=True)
     prefire_da = prefire_da.where(
-        (prefire_da >= config['RECOVERY_PARAMS']['NDVI_LOWER_BOUND']) & (prefire_da <= config['RECOVERY_PARAMS']['NDVI_UPPER_BOUND']),
-        np.nan,
-        prefire_da)
+        (prefire_da >= config['RECOVERY_PARAMS']['NDVI_LOWER_BOUND']) & 
+        (prefire_da <= config['RECOVERY_PARAMS']['NDVI_UPPER_BOUND']),
+        other=np.nan)
     seasonal_means = prefire_da.groupby("time.month").mean(skipna=True)
     seasonal_std = prefire_da.groupby("time.month").std(skipna=True)
     mean_of_seasonal_means = seasonal_means.mean(dim='month', skipna=True).data

@@ -215,6 +215,10 @@ def plot_time_series(
 
                 # Save the figure
                 output_path = PLOTS_DIR + str(elevation) + veg_type.replace("/", "").replace(" ", "_") + ".png"
+
+                # Ensure directory exist
+                os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
+    
                 plt.savefig(output_path, dpi=300)
                 plt.close()
 
@@ -295,6 +299,9 @@ def plot_random_sampled_pt(
     # Save plot
     plt.xticks(rotation=45)
     plt.tight_layout()
-    print(f'Saved at: {data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
+    # Ensure directory exist
+    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
     plt.savefig(f'{data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
     plt.close()
+
+    print(f'Saved at: {data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
