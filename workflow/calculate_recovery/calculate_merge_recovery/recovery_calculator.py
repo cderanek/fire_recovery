@@ -1,5 +1,7 @@
 import xarray as xr
 import pandas as pd
+import numpy as np
+import gc
 
 from typing import Callable, Tuple, Dict, Union, List
 import warnings
@@ -67,7 +69,29 @@ def calculate_ndvi_thresholds(
             
     # Update data array to have a threshold variable
     ndvi_da['threshold'] = thresholds_da
+
+    # Also add a coordinate containing the pre-fire baseline threshold value for YRS_PREFIRE_MATCHED
+    # Report this as the average of the monthly averages, to avoid skewing the baseline towards seasons less likely to have missing data
+    fire_date = pd.to_datetime([ndvi_da.attrs['fire_date']], format=ndvi_da.attrs['fire_date_format'])[0]
+    yrs_prefire_matched = config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']
+    prefire_da = ndvi_da.sel(time=slice(fire_date - pd.Timedelta(weeks=52*yrs_prefire_matched), fire_date)).copy(deep=True)
+    prefire_da = prefire_da.where(
+        (prefire_da >= config['RECOVERY_PARAMS']['NDVI_LOWER_BOUND']) & (prefire_da <= config['RECOVERY_PARAMS']['NDVI_UPPER_BOUND']),
+        np.nan,
+        prefire_da)
+    seasonal_means = prefire_da.groupby("time.month").mean(skipna=True)
+    seasonal_std = prefire_da.groupby("time.month").std(skipna=True)
+    mean_of_seasonal_means = seasonal_means.mean(dim='month', skipna=True).data
+    mean_of_seasonal_stds = seasonal_std.mean(dim='month', skipna=True).data
+    prefire_baseline_data = mean_of_seasonal_means - (0.5*mean_of_seasonal_stds)
     
+    # memory management
+    del prefire_da, seasonal_means, seasonal_std, mean_of_seasonal_means, mean_of_seasonal_stds
+    gc.collect()
+
+    # add prefire baseline as coordinate
+    ndvi_da.coords['prefire_ndvi_baseline'] = (ndvi_da.groups.dims, prefire_baseline_data.astype(np.int16))
+
     # Sort by time, organize the dimensions∂
     ndvi_da = ndvi_da.sortby('time')
     ndvi_da = ndvi_da.transpose('time', 'y', 'x')
@@ -85,11 +109,11 @@ def calculate_recovery_time(
 
     if verbose: 
         print('Calculating recovery')
-        print(ndvi_threshold_da)
+        print(ndvi_thresholds_da)
     
     # Start at the time of the fire
-    fire_date = pd.to_datetime([ndvi_threshold_da.attrs['fire_date']], format=ndvi_threshold_da.attrs['fire_date_format'])[0]
-    threshold_data_postfire = ndvi_threshold_da.threshold.sel(time=slice(fire_date, pd.Timestamp.now()))
+    fire_date = pd.to_datetime([ndvi_thresholds_da.attrs['fire_date']], format=ndvi_thresholds_da.attrs['fire_date_format'])[0]
+    threshold_data_postfire = ndvi_thresholds_da.threshold.sel(time=slice(fire_date, pd.Timestamp.now()))
     
     if verbose: 
         print('threshold data postfire')
@@ -105,23 +129,46 @@ def calculate_recovery_time(
         .rolling(time=min_seasons, min_periods=min_seasons-1)
         .mean()
     )
+
+    # memory management 
+    del threshold_data_postfire
+    gc.collect()
+
+
     recovered = (rolling_nanmeans == 1) # recovered when the mean of the previous 4 time periods is exactly 1
     recovery_num_seasons = recovered.argmax(dim='time') # get the first date where rolling_nanmeans==1 is True
     
     # replace all 0 values (never reached recovery) with nans
     recovery_num_seasons_data = np.where(recovery_num_seasons==0, np.nan, recovery_num_seasons) 
-
+    
     if verbose:
         print('recovery time np array')
         print(recovery_num_seasons_data)
 
-    ndvi_threshold_da.coords['fire_recovery_time'] = (recovery_num_seasons.dims, recovery_num_seasons_data)
+    ndvi_thresholds_da.coords['fire_recovery_time'] = (recovery_num_seasons.dims, recovery_num_seasons_data)
+
+    # Also calculate recovery time based on pre-fire baseline NDVI
+    ndvi_data_postfire = ndvi_thresholds_da.sel(time=slice(fire_date, pd.Timestamp.now()))
+    rolling_nanmeans = (
+        ndvi_data_postfire
+        .rolling(time=min_seasons, min_periods=min_seasons-1)
+        .mean()
+    )
+    recovered = (rolling_nanmeans >= ndvi_thresholds_da['prefire_ndvi_baseline']) # recovered when the mean of the previous 4 time periods is greater than the pre-fire baseline
+    recovery_num_seasons = recovered.argmax(dim='time') # get the first date where recovered is True
+    recovery_num_seasons_data = np.where(recovery_num_seasons==0, np.nan, recovery_num_seasons) # set unrecovered values to nans
+
+    if verbose:
+        print('prefire baseline recovery time np array')
+        print(recovery_num_seasons_data)
+
+    ndvi_thresholds_da.coords['prefire_baseline_recovery_time'] = (recovery_num_seasons.dims, recovery_num_seasons_data)
 
     if verbose: 
         print('Calculated recovery. Final fire biocube:')
-        print(ndvi_threshold_da)
+        print(ndvi_thresholds_da)
         
-    return ndvi_threshold_da
+    return ndvi_thresholds_da
 
 
 def single_fire_recoverytime_summary(
@@ -165,7 +212,7 @@ def single_fire_recoverytime_summary(
     data = pd.DataFrame(
         {"fire": fire_name,
         "fire_date": fire_date,
-        'fire_acr': fire_metadata['FIRE_ACR'],
+        'fire_ha': fire_metadata['FIRE_HA'],
         "recovery_num_seasons": recovery_data.flatten(),
         "severity": recovery_da['severity'].data.flatten(), 
         "groups": recovery_da['groups'].data.flatten()
@@ -181,6 +228,7 @@ def single_fire_recoverytime_summary(
     
     # Format data
     ## Extract elevation, vegetation type, ndvi grouping from grouping code
+    grouping_band_format = config['RECOVERY_PARAMS']['GROUPING_BAND_FORMAT']
     data = extract_group_vals(data, grouping_band_format, nlcd_vegcode_df)
     
     ## Update severity to have more readable names 
@@ -289,12 +337,14 @@ def extract_group_vals(summary_df: pd.DataFrame,
     # Ensure that the output cols are integer types
     for col in col_names:
         summary_df[col] = summary_df[col].astype('Int64') # int64 can handle nans
-        
+
+    summary_df.loc[summary_df['veg_elev_id'] == 0, 'veg_elev_id'] = np.nan # we don't care about 0 veg grouping -- this was the catch all for nonveg types
+    summary_df.dropna(subset='veg_elev_id', inplace=True)
+
     # Add vegetation names and elevation bands
     lookup_dict = nlcd_vegcode_df.set_index('id')[['NLCD_NAME', 'ELEV_LOWER_BOUND']].to_dict('index')
-    summary_df[['Vegetation_Name', 'Elevation']] = summary_df['veg_elev_id'].map(
-        lambda id: pd.Series([lookup_dict[id]['NLCD_NAME'], lookup_dict[id]['ELEV_LOWER_BOUND']])
-        )   
+    summary_df['Vegetation_Name'] = summary_df['veg_elev_id'].map(lambda id: lookup_dict[id]['NLCD_NAME'])
+    summary_df['Elevation'] = summary_df['veg_elev_id'].map(lambda id: lookup_dict[id]['ELEV_LOWER_BOUND'])
     return summary_df
 
 
@@ -371,7 +421,7 @@ def single_reduct_summary(
     reduct_by_dist_df = reduct_by_dist_df.drop(columns='dist_mask')
     
     # Concatenate summary for all 3 groups    
-    return pd.concat([reduct_all_df, reduct_by_sev_df, reduct_by_dist_df])
+    return pd.concat([reduct_all_df, reduct_by_sev_df, reduct_by_dist_df]).drop(columns='band')
 
 
 def reformat_reduct_da(reduct_df: xr.DataArray, 

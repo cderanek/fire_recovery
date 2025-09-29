@@ -29,8 +29,8 @@ def create_main_config_json(config_path, out_path):
         config_data = yaml.safe_load(f)
 
         # Get ROI path for formatting output paths
-        if config['TESTING']: ROI_PATH=config['TEST_ROI']
-        else: ROI_PATH=config['ROI']
+        if config_data['TESTING']: ROI_PATH=config_data['TEST_ROI']
+        else: ROI_PATH=config_data['ROI']
         
         # Save relevant parts of config
         out_data['RECOVERY_PARAMS'] = config_data['RECOVERY_PARAMS']
@@ -41,14 +41,15 @@ def create_main_config_json(config_path, out_path):
 
         # Update file paths
         for key in ['RECOVERY_MAPS_DIR', 'RECOVERY_PLOTS_DIR', 'RECOVERY_CONFIGS', 'LOGGING_PROCESS_CSV']:
-            config['RECOVERY_PARAMS'][key] = get_path(config['RECOVERY_PARAMS'][key], ROI_PATH)
+            out_data['RECOVERY_PARAMS'][key] = get_path(config_data['RECOVERY_PARAMS'][key], ROI_PATH)
         
-        config['LANDSAT']['dir_name'] = get_path(config['LANDSAT']['dir_name'], ROI_PATH)
+        out_data['LANDSAT']['dir_name'] = get_path(config_data['LANDSAT']['dir_name'], ROI_PATH)
 
-        for layer in config['BASELAYERS']:
-            config['BASELAYERS'][layer]['fname'] = get_path(config['BASELAYERS'][layer]['fname'], ROI_PATH)
+        for layer in config_data['BASELAYERS']:
+            out_data['BASELAYERS'][layer]['fname'] = get_path(config_data['BASELAYERS'][layer]['fname'], ROI_PATH)
+        out_data['BASELAYERS']['groupings']['summary_csv'] = get_path(config_data['BASELAYERS']['groupings']['summary_csv'], ROI_PATH)
         
-        config['SENSITIVITY']['plots_dir'] = get_path(config['SENSITIVITY']['plots_dir'], ROI_PATH)
+        out_data['SENSITIVITY']['plots_dir'] = get_path(config_data['SENSITIVITY']['plots_dir'], ROI_PATH)
         
     with open(out_path, 'w') as f:
         json.dump(out_data, f, indent=4)
@@ -58,7 +59,6 @@ def create_main_config_json(config_path, out_path):
 
 def get_fire_metadata(config, ROI_PATH, fireinfo, sensitivity_fireids):
     return {
-        'FIRE_ID': fireinfo['fireid'],
         'FIRE_NAME': fireinfo['name'],
         'FIRE_HA': fireinfo['burn_area_ha'],
         'FIRE_DATE': f'{fireinfo['year']}-{str.zfill(str(fireinfo['month']),2)}-{str.zfill(str(fireinfo['day']),2)}',
@@ -104,6 +104,9 @@ def get_file_paths(config, ROI_PATH, fireinfo):
             'fire_recovery_time': (
                  f'{maps_fire_dir}{prefix}_{config['RECOVERY_PARAMS']['MIN_SEASONS']}seasons_recovery.tif',
                 'int32', -9999),
+            'prefire_baseline_recovery_time': (
+                 f'{maps_fire_dir}{prefix}_{config['RECOVERY_PARAMS']['MIN_SEASONS']}seasons_prefire_baseline_recovery.tif',
+                'int32', -9999),
             'elevation': (
                  f'{maps_fire_dir}{prefix}_elevation.tif',
                 'int32', -9999),
@@ -119,6 +122,9 @@ def get_file_paths(config, ROI_PATH, fireinfo):
             'matched_group_temporal_coverage_qa': (
                  f'{maps_fire_dir}{prefix}_matched_group_temporal_coverage_qa.tif',
                 'int8', -1),
+            'prefire_ndvi_baseline': (
+                 f'{maps_fire_dir}{prefix}_prefire_ndvi_baseline.tif',
+                'float32', -1)
         }
     }
 

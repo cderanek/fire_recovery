@@ -1,10 +1,17 @@
-import sys, filelock, glob, json, os
+import sys, filelock, glob, json, os, re
 import copy
 import pandas as pd
+import numpy as np
  
 from data_merger import create_fire_datacube
 from qa_checks import temporal_coverage_check
 from recovery_calculator import calculate_ndvi_thresholds, calculate_recovery_time, single_fire_recoverytime_summary
+
+sys.path.append("workflow/utils")
+from geo_utils import clip_raster_to_poly, export_to_tiff
+
+sys.path.append("workflow/calculate_recovery/make_plots")
+from recovery_plots import plot_time_series, plot_random_sampled_pt
 
 
 if __name__ == '__main__':
@@ -100,7 +107,7 @@ if __name__ == '__main__':
 
         # Save params to text file in the new OUT_MAPS_DATA_DIR_PATH
         with open(os.path.join(file_paths['OUT_MAPS_DATA_DIR_PATH'], 'params.txt'), 'w') as f:
-            json.dumps(param_d)
+            print(param_d, file=f)
 
         #### LOAD + MERGE DATA ####
         # Load rasters and create merged NDVI dataset + get associated groupings dict
@@ -135,12 +142,12 @@ if __name__ == '__main__':
 
         # save printout to summary txt file
         with open(file_paths['OUT_MERGED_THRESHOLD_NC'].replace('.nc', '_summary.txt'), 'w') as f:
-            print(recovery_da, file=f)
+            print(f'{recovery_da}\n\n{recovery_da.coords}', file=f)
 
         # Export outputs to nc, tif
         if config['RECOVERY_PARAMS']['CREATE_INTERMEDIATE_TIFS']: 
             recovery_da.to_netcdf(file_paths['OUT_MERGED_THRESHOLD_NC'])    # export full biocube with the time series, coords, and resulting recovery 
-                
+        
         for coord, (fname, dtype, nodata) in file_paths['OUT_TIFS_D'].items():
             # skip outputting the following layers if we're not in the default settings
             # these layers are independent of the params, so don't need to be saved for every param combination
@@ -157,14 +164,14 @@ if __name__ == '__main__':
                             out_data_clipped, 
                             fname.replace('.tif', '_clipped.tif'), 
                             dtype_out=dtype, 
-                            NODATA=nodata
+                            nodata=nodata
                         ) 
                     
                     export_to_tiff(
                         out_data, 
                         fname, 
                         dtype_out=dtype, 
-                        NODATA=nodata
+                        nodata=nodata
                     )                                   # export just recovery layer to tif
                 
                 except Exception as e:
@@ -181,20 +188,24 @@ if __name__ == '__main__':
 
 
         #### VISUALIZATIONS ####
-        if config['RECOVERY_PARAMS']['MAKE_PLOTS']:
+        if config['RECOVERY_PARAMS']['MAKE_PLOTS'] or fire_metadata['SENSITIVITY_ANALYSIS']:
             # Plot median time series for each group
             plot_time_series(
                 summary_df,
-                fire_metadata['FIRE_DATE'],
-                file_paths['PLOTS_DIR'],
-                config['MIN_NUM_MATCHED_PIXELS']
+                np.datetime64(fire_metadata['FIRE_DATE']),
+                os.path.join(file_paths['PLOTS_DIR'], 'time_series_aggregate/'),
+                config['RECOVERY_PARAMS']['MIN_NUM_MATCHED_PIXELS']
             )
 
             # Plot time series for 30 randomly selected pixels
-            plot_random_sampled_pt(
-                recovery_da, 
-                summary_df,
-                file_paths['PLOTS_DIR'])
+            for i in range(30):
+                try:
+                    plot_random_sampled_pt(
+                        recovery_da, 
+                        summary_df,
+                        os.path.join(file_paths['PLOTS_DIR'], 'time_series_random/'))
+                except:
+                    pass
         
 
     #### UPDATE LOG FILE ####

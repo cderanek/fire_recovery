@@ -3,7 +3,8 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib.ticker import PercentFormatter
+# from matplotlib.ticker import PercentFormatter
+import matplotlib.dates as mdates
 import os
 
 from typing import List
@@ -67,7 +68,7 @@ def create_density_plot(
     plt.ylabel('Density')
     
     # Format y-axis as percentage
-    plt.gca().yaxis.set_major_formatter(PercentFormatter(1))
+    # plt.gca().yaxis.set_major_formatter(PercentFormatter(1))
     
     # Add grid for better readability
     plt.grid(True, alpha=0.3)
@@ -238,22 +239,27 @@ def plot_random_sampled_pt(
     data_dir: str) -> None:
 
     # Randomly select (x, y) coordinate
-    x_idx = np.random.choice(ndvi_da.dims['x'])
-    y_idx = np.random.choice(ndvi_da.dims['y'])
+    x_idx = np.random.choice(ndvi_da.sizes['x'])
+    y_idx = np.random.choice(ndvi_da.sizes['y'])
 
     # Get data 5-yrs pre-fire to present
-    fire_date = pd.to_datetime([ndvi_da.NDVI.attrs['fire_date']], format=ndvi_da.NDVI.attrs['fire_date_format'])[0]
+    fire_date = pd.to_datetime([ndvi_da.attrs['fire_date']], format=ndvi_da.attrs['fire_date_format'])[0]
     print(fire_date)
     ds = ndvi_da.sel(time=slice(fire_date - pd.Timedelta(weeks=52*5), pd.Timestamp.now()))
     
     # Get NDVI/threshold time series + grouping info for the selected pixel over time
-    ndvi_time_series = ds['NDVI'][:, y_idx, x_idx].values  # NDVI time series for the selected pixel
-    threshold_time_series = ds['threshold'][:, y_idx, x_idx].values  # Threshold time series for the selected pixel
+    ndvi_time_series = ds[:, y_idx, x_idx].values  # NDVI time series for the selected pixel
+    threshold_time_series = ds.coords['threshold'][:, y_idx, x_idx].values  # Threshold time series for the selected pixel
     
-    uid = ds['groups'][y_idx, x_idx].values
+    uid = ds.coords['groups'][y_idx, x_idx].values
+    print(f'UID: {uid}')
     recovery_time = ds.coords['fire_recovery_time'][y_idx, x_idx].values
     curr_df = summary_df.reset_index()[(summary_df.reset_index()['groups']==uid) & (summary_df.reset_index()['Masked']=='UNDISTURBED')]
-    elevation, vegetation_type = curr_df[['Elevation', 'Vegetation_Name']].values[0]
+    if len(curr_df)==0:
+        print('Retrying sampling. Invalid UID selected.')
+        return plot_random_sampled_pt(ndvi_da, summary_df, data_dir)
+    elevation = curr_df['Elevation'].values[0]
+    vegetation_type = curr_df['Vegetation_Name'].values[0]
     times, lower, upper = pd.to_datetime(curr_df['time'].values), curr_df['lower'].values, curr_df['upper'].values
 
     # Create a color array based on whether the threshold is above 1 (blue) or not (red)
@@ -291,3 +297,4 @@ def plot_random_sampled_pt(
     plt.tight_layout()
     print(f'Saved at: {data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
     plt.savefig(f'{data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
+    plt.close()

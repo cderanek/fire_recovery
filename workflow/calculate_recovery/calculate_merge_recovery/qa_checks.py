@@ -21,7 +21,7 @@ def temporal_coverage_check(
         , and are set to 1 for values to mask, and 0 for values to keep.
     '''
     # Filter NDVI time series to only have dates for YRS_PREFIRE_MATCHED
-    fire_date = fire_metadata['FIRE_DATE']
+    fire_date = np.datetime64(fire_metadata['FIRE_DATE'])
     start_matching = fire_date - pd.Timedelta(weeks=52*config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED'])
     end_matching = fire_date + pd.Timedelta(weeks=52*10)
     
