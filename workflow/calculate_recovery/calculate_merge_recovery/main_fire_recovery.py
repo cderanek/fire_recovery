@@ -59,12 +59,12 @@ if __name__ == '__main__':
                     all_param_combos.append(param_d)
         # add default configuration
         param_d = {param: config['SENSITIVITY']['PARAMS'][param]['Default'] for param in config['SENSITIVITY']['PARAMS'].keys()}
-        param_d['suffix'] = '' # default values, suffix is empty string
+        param_d['suffix'] = 'default' # default values
         all_param_combos.append(param_d)
     
     else: # just use current configuration if not in sensitivity analysis fire
         param_d = {param: config['RECOVERY_PARAMS'][param] for param in config['SENSITIVITY']['PARAMS'].keys()}
-        param_d['suffix'] = '' # default values, suffix is empty string
+        param_d['suffix'] = 'default' # default values, suffix is empty string
         all_param_combos.append(param_d)
     
     #### CALCULATE RECOVERY FOR ALL PARAMS IN SENSITIVITY ANALYSIS ####  
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         for coord, (fname, dtype, nodata) in file_paths['OUT_TIFS_D'].items():
             # skip outputting the following layers if we're not in the default settings
             # these layers are independent of the params, so don't need to be saved for every param combination
-            if suffix!='' and coord in ['severity', 'dist_mask', 'future_dist_agdev_mask', 'past_dist_agdev_mask', 'elevation', 'evt']:
+            if suffix!='default' and coord in ['severity', 'dist_mask', 'future_dist_agdev_mask', 'past_dist_agdev_mask', 'elevation', 'evt']:
                 pass 
 
             else:
@@ -204,7 +204,8 @@ if __name__ == '__main__':
                         recovery_da, 
                         summary_df,
                         os.path.join(file_paths['PLOTS_DIR'], 'time_series_random/'))
-                except:
+                except Exception as e:
+                    print(f'ERROR plotting randomly sampled point: {e}')
                     pass
         
 

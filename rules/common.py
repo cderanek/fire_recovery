@@ -9,7 +9,3 @@ def get_path(path, ROI_path):
         if path.startswith(path_start):
             return path.replace(path_start, f"{path_start}{DATA_PREFIX}/")
     return path
-
-
-def get_fireids(wumi_csv_path):
-    return list(pd.read_csv(wumi_csv_path)['fireid'].values)

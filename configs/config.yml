@@ -4,10 +4,9 @@ ROI: 'data/ROI/california.shp'
 
 
 ### TEST SETTINGS ####
-SENSITIVITY_ANALYSIS: False
-TESTING: True
+SENSITIVITY_ANALYSIS: True
+TESTING: False
 TEST_ROI: 'data/test_data/test_ROIS_pts/shulightning_deerlick_ROI.shp'
-TEST_FIRE: '20140726_376750_1197830' # El Portal WUMI ID
 
 
 ### RECOVERY PARAMETERS ####
@@ -26,9 +25,9 @@ RECOVERY_PARAMS:
   MIN_TEMPORAL_COVERAGE_RATIO: 0.8
   NDVI_LOWER_BOUND: 0.2
   NDVI_UPPER_BOUND: 1
-  CREATE_INTERMEDIATE_TIFS: True    # data output params
-  MAKE_PLOTS: True
-  DELETE_NDVI_SEASONAL_TIFS: False
+  CREATE_INTERMEDIATE_TIFS: False    # data output params
+  MAKE_PLOTS: False
+  DELETE_NDVI_SEASONAL_TIFS: True
   LOGGING_PROCESS_CSV: 'logs/processing_progress_summary.csv'
   MONTH_SEASON_DICT: {1: '1', 2: '4', 3: '7', 4: '10'}  # turn quarters to first month of quarter
   GROUPING_BAND_FORMAT:

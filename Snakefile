@@ -20,9 +20,6 @@ TESTING = config['TESTING']
 if TESTING: ROI_PATH = config['TEST_ROI']
 else: ROI_PATH = config['ROI']
 
-### Get list of fireids for our ROI ###
-FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
-
 ### Define targets for the full workflow ###
 rule all:
     input:
@@ -61,8 +58,3 @@ rule get_baselayers:
         done_flag=get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH)
 
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
-
-
-# ### Make recovery maps ###
-# rule calculate_recovery:
-# looks for .done flag from the merged_recovery rule

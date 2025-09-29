@@ -64,6 +64,9 @@ LS_OUT_DIR='/u/project/eordway/shared/surp_cd/fire_recovery/data/shulightning_de
 mosaic_ndvi_timeseries(LS_DATA_DIR, VALID_LAYERS, LS_OUT_DIR, NODATA=-9999, MAKE_RGB = True, MAKE_DAILY_NDVI = False, NDVI_BANDS_DICT=NDVI_BANDS_DICT, RGB_BANDS_DICT=RGB_BANDS_DICT)
 
 
+python workflow/calculate_recovery/calculate_merge_recovery/main_fire_recovery.py data/shulightning_deerlick_ROI/recovery_maps/submission_organizer/main_config.json data/shulightning_deerlick_ROI/recovery_maps/submission_organizer/perfire_config.json 20080907_403800_1229460 logs/shulightning_deerlick_ROI/calculate_recovery/done/perfire_recovery_20080907_403800_1229460.done > output_testing.txt
+
+
 # to run snakemake and have it wait 24hrs before failing anything, submit up to 50 concurrent jobs, keep going if one part of the workflow fails
 snakemake --dag | dot -Tpng > dag.png
 

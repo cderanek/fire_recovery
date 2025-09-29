@@ -10,9 +10,6 @@ TESTING = config['TESTING']
 if TESTING: ROI_PATH = config['TEST_ROI']
 else: ROI_PATH = config['ROI']
 
-### Get list of fireids for our ROI ###
-FIREIDS = get_fireids(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv', ROI_PATH))
-
 
 ### RECOVERY CONFIG SETUP ###
 rule make_recovery_config:
@@ -48,9 +45,39 @@ rule make_recovery_config:
 
 
 ### MAKE ALL PER-FIRE RECOVERY MAPS ###
+checkpoint generate_fire_list:
+    input:
+        get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH)
+    
+    output:
+        get_path("logs/baselayers/done/ready_to_generate_fireids.done", ROI_PATH)
+
+    shell: "touch {output}"
+
+
+def get_fireids(wildcards):
+    # wait for checkpoint
+    checkpoints.generate_fire_list.get()
+
+    # Open wumi csv files with fireids
+    wumi_csv_path = f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv'
+    sensitivity_csv_path = config['SENSITIVITY']['output_sensitivity_selected_csv']
+    wumi_data = pd.read_csv(get_path(wumi_csv_path, ROI_PATH))
+    sensitivity_data = pd.read_csv(get_path(sensitivity_csv_path, ROI_PATH))
+    sensitivity_data = pd.read_csv(sensitivity_csv_path)[['fireid', 'sensitivity_selected']]
+    
+    # Make list of fireids and sort so sensitivity analysis fires run first
+    all_fireids = list(wumi_data['fireid'].values)
+    fireids_sensitivity = list(sensitivity_data.loc[sensitivity_data['sensitivity_selected']==True, 'fireid'].values)
+    sorted_ids = fireids_sensitivity + [id for id in all_fireids if id not in fireids_sensitivity]
+    
+    
+    return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), fireid=sorted_ids)
+
+
 rule allfire_recovery:
     input:
-        expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), fireid=FIREIDS)
+        all_out = get_fireids
 
     log: 
         stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),

@@ -80,17 +80,22 @@ def calculate_ndvi_thresholds(
         (prefire_da <= config['RECOVERY_PARAMS']['NDVI_UPPER_BOUND']),
         other=np.nan)
     seasonal_means = prefire_da.groupby("time.month").mean(skipna=True)
+    print(f'SEASONAL MEANS:\n{seasonal_means}')
     seasonal_std = prefire_da.groupby("time.month").std(skipna=True)
+    print(f'SEASONAL STD:\n{seasonal_std}')
     mean_of_seasonal_means = seasonal_means.mean(dim='month', skipna=True).data
+    print(f'MEAN OF SEASONAL MEANS:\n{mean_of_seasonal_means}')
     mean_of_seasonal_stds = seasonal_std.mean(dim='month', skipna=True).data
+    print(f'MEAN OF SEASONAL STDS:\n{mean_of_seasonal_stds}')
     prefire_baseline_data = mean_of_seasonal_means - (0.5*mean_of_seasonal_stds)
+    print(f'PREFIRE_BASELINE:\n{prefire_baseline_data}', flush=True)
     
     # memory management
     del prefire_da, seasonal_means, seasonal_std, mean_of_seasonal_means, mean_of_seasonal_stds
     gc.collect()
 
     # add prefire baseline as coordinate
-    ndvi_da.coords['prefire_ndvi_baseline'] = (ndvi_da.groups.dims, prefire_baseline_data.astype(np.int16))
+    ndvi_da.coords['prefire_ndvi_baseline'] = (ndvi_da.groups.dims, prefire_baseline_data.astype(np.float32))
 
     # Sort by time, organize the dimensions∂
     ndvi_da = ndvi_da.sortby('time')

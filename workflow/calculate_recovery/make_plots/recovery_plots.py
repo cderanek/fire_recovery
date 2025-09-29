@@ -300,8 +300,8 @@ def plot_random_sampled_pt(
     plt.xticks(rotation=45)
     plt.tight_layout()
     # Ensure directory exist
-    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
-    plt.savefig(f'{data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
+    os.makedirs(os.path.dirname(data_dir) if os.path.dirname(data_dir) else '.', exist_ok=True)
+    plt.savefig(f'{data_dir}time_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
     plt.close()
 
     print(f'Saved at: {data_dir}timerest_recovery{recovery_time}{x_idx}_{y_idx}samplept_timeseries.png')
