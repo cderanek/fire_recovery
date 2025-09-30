@@ -44,6 +44,29 @@ if __name__ == '__main__':
         print(f'Recovery already calculated. Quitting program.') 
         sys.exit(1)
     
+    #### CHECK SEVERITY TIF EXISTS ####
+    if file_paths['BASELAYERS']['severity']==None: 
+        print(f'No severity tif. Quitting program.') 
+        
+        # Update processing log to reflect cause of error
+        lock_file = config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'] + '.lock'
+        lock = filelock.FileLock(lock_file, timeout=60)  # Wait up to 60 seconds for lock
+        try:
+            with lock:
+                csv = pd.read_csv(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'])
+                
+                # update row associated with just completed downloads
+                mask = csv['fireid'] == fireid
+                curr_row_index = csv[mask].index[0]
+                csv.loc[curr_row_index, 'notes'] = 'No severity tif'
+
+            # Save the updated csv
+            csv.to_csv(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'], index=False)
+        
+        except filelock.Timeout:
+            print("Could not acquire lock on file after waiting")
+
+        sys.exit(1)
 
     #### GENERATE ALL PARAMS FOR SENSITIVITY ANALYSIS ####
     all_param_combos = [] # create a list of dictionaries with all param values combos + the assocated file suffix
@@ -94,16 +117,6 @@ if __name__ == '__main__':
             new_path = os.path.join(old_dir, f'{suffix}', old_fname)
             os.makedirs(os.path.dirname(new_path), exist_ok=True)
             file_paths[f] = new_path
-
-        # for key in orig_file_paths.keys():
-        #     if key != 'BASELAYERS':
-        #         print(key)
-        #         print(f'ORIGINAL:\t{orig_file_paths[key]}')
-        #         try:
-        #             print(f'UPDATE:\t\t{file_paths[key]}')
-        #         except:
-        #             print()
-        #         print()
 
         # Save params to text file in the new OUT_MAPS_DATA_DIR_PATH
         with open(os.path.join(file_paths['OUT_MAPS_DATA_DIR_PATH'], 'params.txt'), 'w') as f:

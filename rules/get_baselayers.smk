@@ -279,6 +279,9 @@ rule make_groupings:
     conda: 
         '../workflow/envs/get_baselayers_env.yml'
 
+    resources:
+        mem_gb=120
+
     log: 
         stdout=get_path('logs/baselayers/make_groupings.log', ROI_PATH),
         stderr=get_path('logs/baselayers/make_groupings.err', ROI_PATH)

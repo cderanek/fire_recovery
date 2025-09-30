@@ -71,7 +71,8 @@ def get_fire_metadata(config, ROI_PATH, fireinfo, sensitivity_fireids):
 def get_file_paths(config, ROI_PATH, fireinfo):
     prefix = f'{fireinfo['name']}_{fireinfo['fireid']}'
     maps_fire_dir = get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/', ROI_PATH)
-
+    print(f'fireid folder: {prefix}')
+    print(maps_fire_dir)
     return {
         'INPUT_LANDSAT_DATA_DIR': get_path(f'{config['LANDSAT']['dir_name']}unmerged_scenes/{prefix}/', ROI_PATH),
         'INPUT_LANDSAT_SEASONAL_DIR': get_path(f'{config['LANDSAT']['dir_name']}seasonal/{prefix}/', ROI_PATH),
@@ -82,7 +83,7 @@ def get_file_paths(config, ROI_PATH, fireinfo):
         'RECOVERY_COUNTS_SUMMARY_CSV': f'{maps_fire_dir}{prefix}_grouping_counts_recovery_summary.csv',
         'PLOTS_DIR': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_PLOTS_DIR']}{prefix}/', ROI_PATH),
         'BASELAYERS': {
-            'severity': glob.glob(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/spatialinfo/*_burnsev.tif', ROI_PATH))[0],
+            'severity': next(iter(glob.glob(get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{prefix}/spatialinfo/*_burnsev.tif', ROI_PATH))), None),
             'agdev_mask': get_path(config['BASELAYERS']['agdev_mask']['fname'], ROI_PATH),
             'annual_dist':get_path(config['BASELAYERS']['annual_dist']['fname'], ROI_PATH),
             'groupings': get_path(config['BASELAYERS']['groupings']['fname'], ROI_PATH),

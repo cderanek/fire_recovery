@@ -52,6 +52,9 @@ checkpoint generate_fire_list:
     output:
         get_path("logs/baselayers/done/ready_to_generate_fireids.done", ROI_PATH)
 
+    params:
+        email=config['NOTIFY_EMAIL']
+
     shell: "touch {output}"
 
 
@@ -63,7 +66,6 @@ def get_fireids(wildcards):
     wumi_csv_path = f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv'
     sensitivity_csv_path = config['SENSITIVITY']['output_sensitivity_selected_csv']
     wumi_data = pd.read_csv(get_path(wumi_csv_path, ROI_PATH))
-    sensitivity_data = pd.read_csv(get_path(sensitivity_csv_path, ROI_PATH))
     sensitivity_data = pd.read_csv(sensitivity_csv_path)[['fireid', 'sensitivity_selected']]
     
     # Make list of fireids and sort so sensitivity analysis fires run first
@@ -82,6 +84,9 @@ rule allfire_recovery:
     log: 
         stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),
         stderr=get_path('logs/calculate_recovery/all_perfire_recovery.err', ROI_PATH)
+
+    params:
+        email=config['NOTIFY_EMAIL']
 
     output:
         done_flag=get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH)
