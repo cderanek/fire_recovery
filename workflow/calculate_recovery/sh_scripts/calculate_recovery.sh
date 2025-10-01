@@ -26,7 +26,7 @@ conda deactivate
 conda activate $CONDA_ENV_RECOVERY
 
 # Create recovery data for this fire
-python workflow/calculate_recovery/calculate_merge_recovery/main_fire_recovery.py \
+python workflow/calculate_recovery/single_fire_recovery/main_fire_recovery.py \
     $CONFIG_JSON \
     $PERFIRE_CONFIG_JSON \
     $FIRE_ID \
