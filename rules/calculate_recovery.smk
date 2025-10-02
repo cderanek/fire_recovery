@@ -1,4 +1,4 @@
-import json, sys
+import json, sys, os
 
 configfile: 'configs/config.yml'
 sys.path.append('rules/')
@@ -10,6 +10,8 @@ TESTING = config['TESTING']
 if TESTING: ROI_PATH = config['TEST_ROI']
 else: ROI_PATH = config['ROI']
 
+# The list of fireids will be generated after the mtbs bundles rule completes
+FIREIDS_PRIORITY = None
 
 ### RECOVERY CONFIG SETUP ###
 rule make_recovery_config:
@@ -58,28 +60,108 @@ checkpoint generate_fire_list:
     shell: "touch {output}"
 
 
-def get_fireids(wildcards):
+def get_fireids():
     # wait for checkpoint
     checkpoints.generate_fire_list.get()
 
-    # Open wumi csv files with fireids
-    wumi_csv_path = f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv'
-    sensitivity_csv_path = config['SENSITIVITY']['output_sensitivity_selected_csv']
-    wumi_data = pd.read_csv(get_path(wumi_csv_path, ROI_PATH))
-    sensitivity_data = pd.read_csv(sensitivity_csv_path)[['fireid', 'sensitivity_selected']]
+    global FIREIDS_PRIORITY
+
+    if FIREIDS_PRIORITY == None:
+        # Initialize fireids priority ict
+        FIREIDS_PRIORITY = {
+                'active_fireids': set(),
+                'sensitivity_fireids': set(),
+                'remaining_fireids': set()
+            }
+        # Get list of all fireids from wumi csv
+        wumi_csv_path = f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv'
+        wumi_data = pd.read_csv(get_path(wumi_csv_path, ROI_PATH))
+        all_fireids = set(list(wumi_data['fireid'].values))
+
+        # Get list of active jobs from progress log csv
+        progress_log_csv_path = get_path(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV'], ROI_PATH)
+        if os.path.exists(progress_log_csv_path):
+            progress_log_data = pd.read_csv(progress_log_csv_path)[['fireid', 'download_status']]
+            failed_jobs = set(list(progress_log_data.loc[progress_log_data['download_status']=='Failed', 'fireid'].values))
+            FIREIDS_PRIORITY['active_fireids'] = failed_jobs
+
+        # Get list of sensitivity analyses from sensitivity csv
+        sensitivity_csv_path = config['SENSITIVITY']['output_sensitivity_selected_csv']
+        if os.path.exists(sensitivity_csv_path):
+            sensitivity_data = pd.read_csv(sensitivity_csv_path)[['fireid', 'sensitivity_selected']]
+            fireids_sensitivity = set(list(sensitivity_data.loc[sensitivity_data['sensitivity_selected']==True, 'fireid'].values))
+            FIREIDS_PRIORITY['sensitivity_fireids'] = fireids_sensitivity
+
+        # Update list of remaining fireids
+        FIREIDS_PRIORITY['remaining_fireids'] = all_fireids - failed_jobs - fireids_sensitivity
     
-    # Make list of fireids and sort so sensitivity analysis fires run first
-    all_fireids = list(wumi_data['fireid'].values)
-    fireids_sensitivity = list(sensitivity_data.loc[sensitivity_data['sensitivity_selected']==True, 'fireid'].values)
-    sorted_ids = fireids_sensitivity + [id for id in all_fireids if id not in fireids_sensitivity]
-    
-    
-    return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), fireid=sorted_ids)
+    with open('priority_fireids_dict.txt', 'w') as f:
+        print(FIREIDS_PRIORITY, file=f)
+    return FIREIDS_PRIORITY
 
 
+def get_active_fireids(wildcards):
+    checkpoints.generate_fire_list.get()
+    fireids = get_fireids()
+    return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), 
+                  fireid=list(fireids['active_fireids']))
+
+
+def get_sensitivity_fireids(wildcards):
+    checkpoints.generate_fire_list.get()
+    fireids = get_fireids()
+    return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), 
+                  fireid=list(fireids['sensitivity_fireids']))
+
+
+def get_remaining_fireids(wildcards):
+    checkpoints.generate_fire_list.get()
+    fireids = get_fireids()
+    return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), 
+                  fireid=list(fireids['remaining_fireids']))
+
+
+
+# Batch 1: Run fires with active AppEEARS jobs first
+rule active_appeears_fires_done:
+    input: get_active_fireids
+    
+    log: 
+        stdout=get_path('logs/calculate_recovery/active_perfire_recovery.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/active_perfire_recovery.err', ROI_PATH)
+
+    params:
+        email=config['NOTIFY_EMAIL']
+
+    output:
+        done_flag=get_path('logs/calculate_recovery/done/active_perfire_recovery.done', ROI_PATH)
+
+    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
+
+
+# Batch 2: Run sensitivity fires next
+rule sensitivity_fires_done:
+    input: 
+        get_path('logs/calculate_recovery/done/active_perfire_recovery.done', ROI_PATH),  # wait for batch 1
+        get_sensitivity_fireids
+    
+    log: 
+        stdout=get_path('logs/calculate_recovery/sensitivity_perfire_recovery.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/sensitivity_perfire_recovery.err', ROI_PATH)
+
+    params:
+        email=config['NOTIFY_EMAIL']
+
+    output:
+        done_flag=get_path('logs/calculate_recovery/done/sensitivity_perfire_recovery.done', ROI_PATH)
+
+    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
+
+# Batch 3: Run all other fires last
 rule allfire_recovery:
     input:
-        all_out = get_fireids
+        get_path('logs/calculate_recovery/done/sensitivity_perfire_recovery.done', ROI_PATH), # wait for batch 2 
+        get_remaining_fireids
 
     log: 
         stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),
@@ -125,7 +207,6 @@ rule perfire_recovery:
         cpus=1,#4,
         runtime=24,
         mem_gb=35
-
 
     shell: 
         """
