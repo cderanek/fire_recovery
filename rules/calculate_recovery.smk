@@ -11,6 +11,8 @@ if TESTING: ROI_PATH = config['TEST_ROI']
 else: ROI_PATH = config['ROI']
 
 # The list of fireids will be generated after the mtbs bundles rule completes
+# NOTE that this does not strictly enforce the job order priority. BUT, it allows you to taget only active jobs or sensitivity jobs when running the main snakefile by targetting that rule, rather than the full perfire recovery rule
+# Without specifying a target, no specific fireid order will be enforced at all
 FIREIDS_PRIORITY = None
 
 ### RECOVERY CONFIG SETUP ###
