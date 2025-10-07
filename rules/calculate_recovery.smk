@@ -15,6 +15,7 @@ else: ROI_PATH = config['ROI']
 # Without specifying a target, no specific fireid order will be enforced at all
 FIREIDS_PRIORITY = None
 
+
 ### RECOVERY CONFIG SETUP ###
 rule make_recovery_config:
     input:
@@ -49,6 +50,8 @@ rule make_recovery_config:
 
 
 ### MAKE ALL PER-FIRE RECOVERY MAPS ###
+
+## HELPER FUNCTIONS (ORGANIZE DOWNLOAD PRIORITY)
 checkpoint generate_fire_list:
     input:
         get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH)
@@ -123,7 +126,63 @@ def get_remaining_fireids(wildcards):
                   fireid=list(fireids['remaining_fireids']))
 
 
+## COORDINATOR FOR FIRE DOWNLOADS
+rule coordinate_appeears_requests:
+    """
+    Main job that organizes steady flow submissions to appeear without overloading apppeears with requests
+    runs at low-memory for long time on lab node
+    """
+    input:
+        # need all baselayers in-place before we can submit the perfire recovery qsub task array
+        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
+        # need config files with params for running download, calculate_recovery scripts
+        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
+        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH)
+        
+    params:
+        conda_env='EARTHACCESS',
+        email=config['NOTIFY_EMAIL']
 
+    conda: 
+        '../workflow/envs/earthaccess_env.yml'
+
+    log: 
+        stdout=get_path('logs/calculate_recovery/coordinate_appeears_requests.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/coordinate_appeears_requests.err', ROI_PATH)
+
+    output:
+        done_flag=get_path('logs/calculate_recovery/done/coordinate_appeears_requests.done', ROI_PATH)
+
+    resources:
+        cpus=1,
+        runtime=336,
+        mem_gb=10,
+        pe_flag=',highp'
+
+    shell: 
+        """
+        workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests.sh \
+             {params.conda_env} \
+             {input.main_config_json} \
+             {input.perfire_config_json} \
+             {output.done_flag} > {log.stdout} 2> {log.stderr}
+        """
+
+rule potential_ready_flags:
+    """
+    dummy rule to reassure snakemake that there will be ready_to_download_{fireid}.done flags created.
+    these flags will be created by coordinate_appears_requests, but can't be explicit outputs because
+    we only want it to run 1 time, and want the perfire rule jobs to release over time, not all at once
+    when the coordinator jobs ends
+    """
+    output:
+        get_path('logs/calculate_recovery/done/ready_to_download_{fireid}.done', ROI_PATH)
+    run:
+        pass
+
+
+
+## TRIGGER DOWNLOADS/RECOVERY CALCS
 # Batch 1: Run fires with active AppEEARS jobs first
 rule active_appeears_fires_done:
     input: get_active_fireids
@@ -186,6 +245,8 @@ rule perfire_recovery:
     input:
         # need all baselayers in-place before we can submit the perfire recovery qsub task array
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
+        # need to know job is ready to download before submitting
+        get_path('logs/calculate_recovery/done/ready_to_download_{fireid}.done', ROI_PATH),
         # need config files with params for running download, calculate_recovery scripts
         main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
         perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH)

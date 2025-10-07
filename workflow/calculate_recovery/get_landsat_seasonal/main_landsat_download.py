@@ -82,6 +82,7 @@ def create_download_log(args):
         df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
         df['mosaic_tries_left'] = 5 # reset mosaic tries left
         df['download_bundle_tries_left'] = 5 # reset download bundle tries left
+        df['download_complete'] = False # reset to redownload all bundles
         now = datetime.now()
         cutoff = now - timedelta(days=28)
 
@@ -209,7 +210,6 @@ def process_all_years(args: dict):
 
         # Log in to earth access
         head = login_earthaccess()
-        print(f'head: {head}')
         # Submit task
         task_id = post_request(task_json, head, max_retries=10)
         print(f'task id: {task_id}')
@@ -229,10 +229,10 @@ def process_all_years(args: dict):
         print(f'Starting another round of checks: {unsuccessful_years_w_retries}\n{download_log}', flush=True)
         download_log.to_csv(args['download_log_csv'], index=False)
         # for each task with no bundle, ping appeears, and if ready, get bundle
-        nodbundle_years_df = download_log[['start_date', 'task_id', 'head']][(download_log['ndvi_mosaic_complete']==False) & (download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
-        for index, (start_date, task_id, head) in nodbundle_years_df.iterrows():
+        nodbundle_years_df = download_log[['start_date', 'task_id']][(download_log['ndvi_mosaic_complete']==False) & (download_log['bundle'].isna()) & (download_log['get_bundle_tries_left']>0)]
+        for index, (start_date, task_id) in nodbundle_years_df.iterrows():
+            head = login_earthaccess()
             print(f'Pinging appears for start date: {start_date}; task_id: {task_id}')
-            head = {'Authorization': head}
             task_complete = ping_appears_once(task_id, head)
             print(f'ping response: {task_complete}', flush=True)
             time.sleep(SLEEP_TIME) # to enforce sleep time between requests
@@ -251,10 +251,10 @@ def process_all_years(args: dict):
                     download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
 
         # for each task with a bundle, but incomplete download, try to download bundle
-        incompletedownload_years_df = download_log[['start_date', 'task_id', 'head', 'bundle', 'dest_dir']][(download_log['ndvi_mosaic_complete']==False) & (download_log['download_complete']==False) & (download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
-        for index, (start_date, task_id, head, bundle, dest_dir) in incompletedownload_years_df.iterrows():
+        incompletedownload_years_df = download_log[['start_date', 'task_id', 'bundle', 'dest_dir']][(download_log['ndvi_mosaic_complete']==False) & (download_log['download_complete']==False) & (download_log['bundle'].notna()) & (download_log['download_bundle_tries_left']>0)]
+        for index, (start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
             print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}')
-            head = {'Authorization': head}
+            head = login_earthaccess()
             # try to download bundle
             dest_dir_complete = None
             dest_dir_complete = download_landsat_bundle(bundle, task_id, head, dest_dir)

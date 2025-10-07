@@ -49,7 +49,8 @@ def open_align_fire_rasters(
         .rio.write_crs(curr_crs)
         .rio.clip_box(xmin, ymin, xmax, ymax)
     )
-    
+    dist_rxr, agdev_mask_rxr = reproj_align_rasters('reproj_match', dist_rxr, agdev_mask_rxr)
+
     # All-time disturbance: select latest year + add agdev mask
     cuml_dist_rxr = dist_rxr.cumulative_annual_dist.isel(time=-1).rio.write_crs(curr_crs)
     cuml_dist_data = np.append([cuml_dist_rxr.data], [agdev_mask_rxr.data], axis=0) # append ag/dev mask so that anything that is ag/dev (set to 1 on ag/dev mask) leads to that pixel having nanmax >0

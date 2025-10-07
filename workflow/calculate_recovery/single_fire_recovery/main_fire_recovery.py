@@ -1,4 +1,4 @@
-import sys, filelock, glob, json, os, re
+import sys, filelock, glob, json, os, re, subprocess
 import copy
 import pandas as pd
 import numpy as np
@@ -19,6 +19,7 @@ if __name__ == '__main__':
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid=sys.argv[3]
+    done_flag=sys.argv[4]
 
     # read in jsons
     with open(main_config_path, 'r') as f:
@@ -42,7 +43,8 @@ if __name__ == '__main__':
         
     if csv.loc[curr_row_index, 'recovery_complete'] == True: 
         print(f'Recovery already calculated. Quitting program.') 
-        sys.exit(1)
+        subprocess.run(['touch', done_flag])
+        sys.exit(0)
     
     #### CHECK SEVERITY TIF EXISTS ####
     if file_paths['BASELAYERS']['severity']==None: 
@@ -244,15 +246,17 @@ if __name__ == '__main__':
     #### DELETE ORIGINAL DATA ####
     pattern = r".*/temp/seasonal/.*_\d+/"
     ndvi_dir = file_paths['INPUT_LANDSAT_SEASONAL_DIR']
-    if re.match(pattern, ndvi_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS']:
-        print('will delete:', f'rm -r {ndvi_dir}*.tif')
-        print(os.system(f'ls {ndvi_dir}*.tif'))
-        os.system(f'rm -r {ndvi_dir}*.tif')
+    if re.match(pattern, ndvi_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not fire_metadata['SENSITIVITY_ANALYSIS']:
+        print('will delete:', f'rm -r {ndvi_dir}')
+        print(os.system(f'ls {ndvi_dir}'))
+        os.system(f'rm -r {ndvi_dir}')
         
     
     landsat_dir = file_paths['INPUT_LANDSAT_DATA_DIR']
-    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS'] and not fire_metadata['SENSITIVITY_ANALYSIS']:
-        for folder in glob.glob(f'{landsat_dir}LS_01-01-*'):
+    if os.path.exists(landsat_dir) and config['RECOVERY_PARAMS']['DELETE_NDVI_SEASONAL_TIFS']:
+        for folder in glob.glob(f'{landsat_dir}LS_*wumi_mtbs_poly_bufferedshp'):
             if os.path.isdir(folder):
                 print('will delete:', f'rm -r {folder}')
                 os.system(f'rm -r {folder}')
+
+    subprocess.run(['touch', done_flag])
