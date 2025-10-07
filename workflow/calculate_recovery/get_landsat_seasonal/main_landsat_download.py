@@ -4,175 +4,14 @@ import filelock
 from functools import partial
 from datetime import datetime, timedelta
 
-from typing import Tuple, Union, List
-NumericType = Union[int, float]
-RangeType = Tuple[NumericType, NumericType]    
-
+from download_log_helpers import *
 sys.path.append("workflow/utils/") 
 from earthaccess_downloads import *
 from merge_process_scenes import mosaic_ndvi_timeseries
 from geo_utils import buffer_firepoly
 
-LANDSAT_BAD_DATE = datetime(2024, 6, 8)
-SLEEP_TIME = 60*2 # 2min pause between pings
-
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
-def skip_bad_dates(
-    start_dates: List[datetime], 
-    end_dates: List[datetime], 
-    bad_date: datetime = LANDSAT_BAD_DATE
-    ):
-    '''Given a range of start/end dates, for any download request that would span the bad date,
-    split that request into 2 requests -- skipping over the bad date.
-    '''
-    new_start_dates, new_end_dates = [], []
-
-    for start_date, end_date in zip(start_dates, end_dates):
-        if start_date < bad_date < end_date:
-            # split the date range to end the day before the bad date,
-            # and then start back up 1 day after the bad date
-            new_start_dates.append(start_date)
-            new_end_dates.append(bad_date - timedelta(days=1))
-            new_start_dates.append(bad_date + timedelta(days=1))
-            new_end_dates.append(end_date)
-
-        else:
-            # keep the original date range
-            new_start_dates.append(start_date)
-            new_end_dates.append(end_date)
-
-    return new_start_dates, new_end_dates
-
-
-def create_download_log(args):
-    # if download log doesn't exist, create it
-    if not os.path.exists(args['download_log_csv']):
-        print(f'Making new {args['download_log_csv']}')
-        years_range = list(args['years_range'])
-        start_years = range(years_range[0], years_range[-1], args['num_yrs_per_request'])
-        start_dates = list(f'01-01-{year}' for year in start_years)
-        end_dates = [f'12-31-{year-1}' for year in start_years[1:]] + [f'12-31-{years_range[-1]}']
-        start_dates, end_dates = skip_bad_dates(pd.to_datetime(start_dates), pd.to_datetime(end_dates))
-        print(start_dates, flush=True)
-        print(end_dates, flush=True)
-        
-        df = pd.DataFrame({
-            'start_date': start_dates, 
-            'end_date': end_dates,
-            'dest_dir': '',
-            'head': np.nan, 
-            'task_id': np.nan, 
-            'bundle': np.nan,
-            'task_submitted_time': np.nan, 
-            'bundle_received_time': np.nan, 
-            'download_complete': False, 
-            'ndvi_mosaic_complete': False,
-            'get_bundle_tries_left': 20,
-            'download_bundle_tries_left': 20,
-            'mosaic_tries_left': 5
-        })
-
-    # if download log exists already
-    else:
-        # FOR YEAR GROUPS WHERE DOWNLOAD DIDN'T COMPLETE
-        # reset any rows that were created >28days ago, but download not completed
-        df = pd.read_csv(args['download_log_csv'])
-        df['task_submitted_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
-        df['bundle_received_time'] = pd.to_datetime(df['task_submitted_time'], errors='coerce')
-        df['mosaic_tries_left'] = 5 # reset mosaic tries left
-        df['download_bundle_tries_left'] = 5 # reset download bundle tries left
-        df['download_complete'] = False # reset to redownload all bundles
-        now = datetime.now()
-        cutoff = now - timedelta(days=28)
-
-        reset_download_rows = (
-            (df['download_complete'] == False) &
-            (df['task_submitted_time'].notna()) &
-            (df['task_submitted_time']< cutoff)
-        )
-        print(f'reset download rows: {reset_download_rows}')
-        cols_to_reset = ['head', 'task_id', 'bundle', 'task_submitted_time', 'bundle_received_time']
-        df.loc[reset_download_rows, cols_to_reset] = np.nan
-
-    df['start_date'] = pd.to_datetime(df['start_date'], errors='coerce')
-    df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
-    df = df.astype({
-        'start_date': 'object', 
-        'end_date': 'object',
-        'dest_dir': 'str',
-        'head': 'object', 
-        'task_id': 'object', 
-        'bundle': 'object',
-        'task_submitted_time': 'object', 
-        'bundle_received_time': 'object', 
-        'download_complete': 'bool', 
-        'ndvi_mosaic_complete': 'bool',
-        'get_bundle_tries_left': 'int',
-        'download_bundle_tries_left': 'int',
-        'mosaic_tries_left': 'int'
-    })
-
-    # make sure failed/successful year results are up-to-date
-    successful_years, unsuccessful_years = report_results(args)
-
-    # if all years between start and end are successfully mosaiced, update download_complete and ndvi_mosaic_complete to be True
-    for index, (start_date, end_date) in df[['start_date', 'end_date']].iterrows():
-        start_year, end_year = start_date.year, end_date.year
-        allyrs = list(range(start_year, end_year+1))
-        if sum([yr in unsuccessful_years for yr in allyrs]) == 0:
-            df.loc[index, 'download_complete'] = True
-            df.loc[index, 'ndvi_mosaic_complete'] = True
-
-    os.makedirs(os.path.dirname(args['download_log_csv']), exist_ok=True)
-    df.to_csv(args['download_log_csv'], index=False)
-    return df
-
-
-def get_successful_failed_years(seasonal_dir, desired_years_range):
-    successful_years, failed_years = [], []
-    curr_yr_expected_seasons = np.floor((4*datetime.now().month)/12.0)
-    for year in desired_years_range:
-        mosaiced = []
-        for season in ['01', '02', '03', '04']:
-            mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
-
-        if len(mosaiced)==4: successful_years.append(year)
-        elif (year == int(datetime.now().year)) and (len(mosaiced) >= curr_yr_expected_seasons): successful_years.append(year)
-        else: failed_years.append(year)
-
-    return successful_years, failed_years
-
-
-def report_results(args):
-    # list successful/unsuccessful years downloads
-    successful_years, failed_years = get_successful_failed_years(args['ls_seasonal_dir'], args['years_range'])
-    if len(failed_years) == 0: 
-        download_status='Complete'
-    else: 
-        download_status='Failed'
-    
-    # update submissions organizer csv
-    lock_file = args['progress_log_csv'] + '.lock'
-    lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
-    try:
-        with lock:
-            csv = pd.read_csv(args['progress_log_csv'])
-               
-            # update row associated with just completed downloads
-            mask = csv['fireid'] == args['fireid']
-            csv.loc[mask, 'download_status'] = download_status
-            csv.loc[mask, 'successful_years'] = str(successful_years)
-            csv.loc[mask, 'failed_years'] = str(failed_years)
-            
-        # Save the updated csv
-        csv.to_csv(args['progress_log_csv'], index=False)
-        
-    except filelock.Timeout:
-        print("Could not acquire lock on file after waiting", flush=True)
-
-    return successful_years, failed_years
-
 def process_all_years(args: dict):
     # cleanup file names for task submission
     roi_path = args['bufferedfireShpPath']
@@ -288,8 +127,8 @@ def process_all_years(args: dict):
         unsuccessful_years_w_retries = download_log['start_date'][(download_log['ndvi_mosaic_complete']==False) & (download_log['get_bundle_tries_left']>0) & (download_log['download_bundle_tries_left']>0) & (download_log['mosaic_tries_left']>0)]
         
         # Update final results report
-        report_results(args)
-
+        report_results(args['ls_seasonal_dir'], args['years_range'], args['progress_log_csv'], args['fireid'])
+        
 if __name__ == "__main__":
     print(f'Running main_landsat_download.py with arguments {'\n'.join(sys.argv)}\n')
     main_config_path=sys.argv[1]
