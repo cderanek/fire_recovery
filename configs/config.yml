@@ -5,8 +5,8 @@ ROI: 'data/ROI/california.shp'
 
 ### TEST SETTINGS ####
 SENSITIVITY_ANALYSIS: True
-TESTING: False
-TEST_ROI: 'data/test_data/test_ROIS_pts/shulightning_deerlick_ROI.shp'
+TESTING: True
+TEST_ROI: 'data/test_data/test_ROIS_pts/UL_CA_wgs84_testROI.shp'
 
 
 ### RECOVERY PARAMETERS ####

@@ -3,6 +3,7 @@ import json, sys, os
 configfile: 'configs/config.yml'
 sys.path.append('rules/')
 from common import *
+localrules: potential_ready_flags, sensitivity_fires_done, allfire_recovery, generate_fire_list
 
 
 ### Set paths based on testing mode ###
@@ -89,6 +90,7 @@ def get_fireids():
 
         # Update list of remaining fireids
         FIREIDS_PRIORITY['remaining_fireids'] = all_fireids - fireids_sensitivity
+        FIREIDS_PRIORITY['all_fireids'] = all_fireids
     
     with open('priority_fireids_dict.txt', 'w') as f:
         print(FIREIDS_PRIORITY, file=f)
@@ -124,7 +126,8 @@ rule coordinate_appeears_requests:
         
     params:
         conda_env='EARTHACCESS',
-        email=config['NOTIFY_EMAIL']
+        email=config['NOTIFY_EMAIL'],
+        fireid_done_flag_template=get_path('logs/calculate_recovery/done/ready_to_download_fireid.done', ROI_PATH)
 
     conda: 
         '../workflow/envs/earthaccess_env.yml'
@@ -148,6 +151,7 @@ rule coordinate_appeears_requests:
              {params.conda_env} \
              {input.main_config_json} \
              {input.perfire_config_json} \
+             {params.fireid_done_flag_template} \
              {output.done_flag} > {log.stdout} 2> {log.stderr}
         """
 
@@ -158,15 +162,19 @@ rule potential_ready_flags:
     we only want it to run 1 time, and want the perfire rule jobs to release over time, not all at once
     when the coordinator jobs ends
     """
+    input:
+        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH)
+
+    localrule: True
+        
     output:
         get_path('logs/calculate_recovery/done/ready_to_download_{fireid}.done', ROI_PATH)
+
     run:
         pass
 
-
-
 ## TRIGGER DOWNLOADS/RECOVERY CALCS
-# Batch 1: Run sensitivity fires first
+# Batch 1: Target running sensitivity fires
 rule sensitivity_fires_done:
     input:
         get_sensitivity_fireids
@@ -184,10 +192,9 @@ rule sensitivity_fires_done:
     shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
 
 
-# Batch 2: Run all other fires next
+# Batch 2: Run all other fires
 rule allfire_recovery:
     input:
-        get_path('logs/calculate_recovery/done/sensitivity_perfire_recovery.done', ROI_PATH), # wait for batch 2 
         get_remaining_fireids
 
     log: 
@@ -209,7 +216,7 @@ rule perfire_recovery:
     download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
     """
     input:
-        # need all baselayers in-place before we can submit the perfire recovery qsub task array
+        # need all baselayers in-place before we can submit the perfire recovery tasks
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
         # need to know job is ready to download before submitting
         get_path('logs/calculate_recovery/done/ready_to_download_{fireid}.done', ROI_PATH),

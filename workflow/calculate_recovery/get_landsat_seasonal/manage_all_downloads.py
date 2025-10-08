@@ -10,6 +10,7 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import subprocess
 from download_log_helpers import *
 
 
@@ -18,7 +19,8 @@ if __name__ == '__main__':
     print(f'Running manage_all_downloads.py with arguments {'\n'.join(sys.argv)}\n')
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
-    prioritize_sensitivity = bool(sys.argv[3]) # if true, submit/monitor sensitivity fires, then exit
+    fireid_done_template=sys.argv[3]
+    # prioritize_sensitivity = bool(sys.argv[3]) # if true, submit/monitor sensitivity fires, then exit
 
 
     # read in jsons
@@ -34,7 +36,9 @@ if __name__ == '__main__':
 
     # while not all tasks ready, keep looping
     not_done = True
+
     while not_done:
+
         # if <25 jobs active, submit tasks until up to 25
         active_jobs_count = (
             (download_log['ndvi_mosaic_complete']==False) &
@@ -50,10 +54,21 @@ if __name__ == '__main__':
         download_log, new_fires_ready = update_status_incomplete_tasks(download_log, download_log_path)
 
         # for fires where all the tasks are complete, create done flag
-
+        [suprocess.run(
+            ['touch', fireid_done_template.replace('fireid',fireid)]
+            ) for fireid in new_fires_ready]
 
         # check if all jobs are processed, update not_done bool
-        if prioritize_sensitivity:
-            # filter to just sensitivity fires, then check if all jobs are done
-            pass
-        else: pass
+        jobs_not_ready_mask = (
+            (download_log['ndvi_mosaic_complete']==False) &
+            (download_log['task_status'] != 'ready_to_download') &
+            (download_log['get_bundle_tries_left']>0)
+            )
+        jobs_not_ready_count = jobs_not_ready_mask.sum()
+        unique_fires_left = np.unique(download_log.loc[jobs_not_ready_mask, 'fireid'])
+        not_done = jobs_not_ready_count>0
+        
+        if not_done:
+            print(f'Still have {jobs_not_ready_count} jobs over {unique_fires_left} unique fires left to complete.', flush=True)
+        else:
+            print('All fires are ready for download!')
