@@ -3,7 +3,7 @@ import json, sys, os
 configfile: 'configs/config.yml'
 sys.path.append('rules/')
 from common import *
-localrules: potential_ready_flags, allfire_recovery, generate_fire_list
+localrules: potential_ready_flags, allfire_recovery, generate_fire_list, coordinate_appeears_requests
 
 
 ### Set paths based on testing mode ###
@@ -115,45 +115,68 @@ def get_all_fireids(wildcards):
 ## COORDINATOR FOR FIRE DOWNLOADS
 rule coordinate_appeears_requests:
     """
-    Main job that organizes steady flow submissions to appeear without overloading apppeears with requests
-    runs at low-memory for long time on lab node
+    Creates a qsub script that can be executed outside of snakemake 
+    (to keep this as a long-running coordinator task, in the background of the rest of the workflow).
+    Output done flag contains the qsub script, which we execute as: 
+    qsub <path_to_done_flag.sh>
     """
     input:
         # need all baselayers in-place before we can submit the perfire recovery qsub task array
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
-        
+    
+    localrule: True
+
     params:
         conda_env='EARTHACCESS',
         email=config['NOTIFY_EMAIL'],
         main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
         perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH),
-        fireid_done_flag_template=get_path('logs/calculate_recovery/done/ready_to_download_fireid.done', ROI_PATH)
-
-    conda: 
-        '../workflow/envs/earthaccess_env.yml'
-
-    log: 
-        stdout=get_path('logs/calculate_recovery/coordinate_appeears_requests.log', ROI_PATH),
-        stderr=get_path('logs/calculate_recovery/coordinate_appeears_requests.err', ROI_PATH)
-
-    output:
-        done_flag=get_path('logs/calculate_recovery/done/coordinate_appeears_requests.done', ROI_PATH)
-
-    resources:
-        cpus=1,
+        fireid_done_flag_template=get_path('logs/calculate_recovery/done/ready_to_download_fireid.done', ROI_PATH),
         runtime=336,
         mem_gb=10,
+        cpus=1,
         pe_flag=',highp'
 
-    shell: 
-        """
-        workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests.sh \
-             {params.conda_env} \
-             {params.main_config_json} \
-             {params.perfire_config_json} \
-             {params.fireid_done_flag_template} \
-             {output.done_flag} > {log.stdout} 2> {log.stderr}
-        """
+    log: 
+        stdout=get_path('logs/calculate_recovery/coordinate_appeears_requests_setup.log', ROI_PATH),
+        stderr=get_path('logs/calculate_recovery/coordinate_appeears_requests_setup.err', ROI_PATH)
+
+    output:
+        sh_script='workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh'
+        
+    run:
+        import os
+
+        script_lines = [
+            "#!/bin/bash",
+            "#$ -cwd",
+            f"#$ -o {os.path.dirname(log.stdout)}/coordinate_appeears_requests.cluster.out",
+            f"#$ -e {os.path.dirname(log.stderr)}/coordinate_appeears_requests.cluster.err",
+            "#$ -j y",
+            f"#$ -l h_rt={params.runtime}:00:00,h_data={params.mem_gb}G{params.pe_flag}",
+            f"#$ -pe shared {params.cpus}",
+            f"#$ -M {params.email}",
+            "#$ -m bea",
+            "",
+            "# Execute the appeeears download coordinator script",
+            f"workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests.sh \\",
+            f"    {params.conda_env} \\",
+            f"    {params.main_config_json} \\",
+            f"    {params.perfire_config_json} \\",
+            f"    {params.fireid_done_flag_template} \\",
+            f"    {output.sh_script} > {log.stdout} 2> {log.stderr}",
+            ""
+        ]
+        
+        script_content = "\n".join(script_lines)
+        
+        with open(output.sh_script, 'w') as f:
+            f.write(script_content)
+        
+        # Make the script executable
+        os.chmod(output.sh_script, 0o755)
+
+
 
 rule potential_ready_flags:
     """
@@ -163,7 +186,7 @@ rule potential_ready_flags:
     when the coordinator jobs ends
     """
     input:
-        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH)
+        'workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh' # force run of coordinating job that submits appeears requests
 
     localrule: True
         
@@ -177,8 +200,9 @@ rule potential_ready_flags:
 ## TRIGGER DOWNLOADS/RECOVERY CALCS
 rule allfire_recovery:
     input:
-        get_all_fireids,
-        get_path('logs/calculate_recovery/done/coordinate_appeears_requests.done', ROI_PATH) # force run of coordinating job that submits appeears requests
+        get_all_fireids
+
+    localrule: True
 
     log: 
         stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),
@@ -205,6 +229,8 @@ rule perfire_recovery:
     params:
         conda_env_download='EARTHACCESS',
         conda_env_recovery='RIO_GPD',
+        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
+        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH),
         email=config['NOTIFY_EMAIL']
 
     conda: 
@@ -227,8 +253,8 @@ rule perfire_recovery:
         workflow/calculate_recovery/sh_scripts/calculate_recovery.sh \
              {params.conda_env_download} \
              {params.conda_env_recovery} \
-             {input.main_config_json} \
-             {input.perfire_config_json} \
+             {params.main_config_json} \
+             {params.perfire_config_json} \
              {wildcards.fireid} \
              {output.done_flag}  > {log.stdout} 2> {log.stderr}
         """

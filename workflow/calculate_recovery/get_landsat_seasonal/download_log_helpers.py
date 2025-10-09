@@ -4,7 +4,10 @@ import numpy as np
 import filelock
 from datetime import datetime, timedelta
 from earthaccess_downloads import *
+from typing import List
 
+sys.path.append("workflow/utils/") 
+from geo_utils import export_to_tiff, reproj_align_rasters, buffer_firepoly
 
 LANDSAT_BAD_DATE = datetime(2024, 6, 8) # this date causes jobs to fail -- temp DAAC issue
 SLEEP_TIME = 60*2 # 2min pause between pings
@@ -85,13 +88,14 @@ def report_results(ls_seasonal_dir, years_range, progress_log_path, fireid):
 
 def generate_default_perfire_download_log(fireid, file_paths, fire_metadata, config):
     # Generate job task dates
+    num_yrs_per_request = config['LANDSAT']['NUM_YRS_PER_REQUEST']
     years_range = list(range(
         fire_metadata['FIRE_YEAR'] - int(config['RECOVERY_PARAMS']['YRS_PREFIRE_MATCHED']), 
         datetime.now().year+1
         ))
     start_years = range(years_range[0], years_range[-1], num_yrs_per_request)
     start_dates = list(f'01-01-{year}' for year in start_years)
-    end_dates = [f'12-31-{year-1}' for year in start_years[1:]] + [f'12-31-{years_range[-1]}']
+    end_dates = [f'12-31-{year-1}' for year in start_years[1:]] + [f'06-30-{years_range[-1]}']
     start_dates, end_dates = skip_bad_dates(pd.to_datetime(start_dates), pd.to_datetime(end_dates))
 
     # Create buffered fire shp path
@@ -188,7 +192,6 @@ def format_download_log(download_log):
         'start_date': object, 
         'end_date': object,
         'dest_dir': str,
-        'head': object, 
         'task_id': object, 
         'bundle': object,
         'task_status': str,
@@ -235,18 +238,19 @@ def create_download_log(
         bufferedfire_shp_path: str (path to buffered fire polygon bbox for generating requests)
     '''
     download_log_path = os.path.join(
-        os.path.basename(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV']),
+        os.path.dirname(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV']),
         'allfires_download_log.csv'
     )
 
     # If download log exists, open and return it
     if os.path.exists(download_log_path):
-        return pd.read_csv(download_log_path)
+        download_log = pd.read_csv(download_log_path)
+        download_log = format_download_log(download_log)
+        return download_log, download_log_path
 
     # Otherwise, create download log and save it
     # create list to hold perfire dfs
-    download_log_dfs []
-    num_yrs_per_request = config['LANDSAT']['NUM_YRS_PER_REQUEST']
+    download_log_dfs = []
 
     # iterate over all fires, adding them to download log
     for fireid in perfire_config.keys():
@@ -274,18 +278,23 @@ def create_download_log(
     download_log = download_log.sort_values(
         by=['sensitivity', 'fireid', 'start_date']
         )                                                           # sort by sensitivity, then fireid, then start date
+    download_log['submit_order'] = range(len(download_log))
     os.makedirs(os.path.dirname(download_log_path), exist_ok=True)  # save csv
     download_log.to_csv(download_log_path, index=False)
 
     return download_log, download_log_path
 
 
-def create_post_request(download_log, index):
+def create_post_request(download_log, download_log_path, index, config):
     download_log_row = download_log.iloc[index]
 
-    if download_row['task_status']!='unsubmitted':
-        print(f'Download row already submitted. Skipping row: \n{download_row}', flush=True)
+    if download_log_row['task_status']!='unsubmitted':
+        print(f'Download row already submitted. Skipping row: \n{download_log_row}', flush=True)
         return None
+
+    # Get LS download data
+    ls_data_dir = config['LANDSAT']['dir_name']
+    product_layers = config['LANDSAT']['PRODUCT_LAYERS']
 
     # create and submit task json
     roi_path = download_log_row['bufferedfire_shp_path']
@@ -297,21 +306,21 @@ def create_post_request(download_log, index):
 
     # Format dest dir
     # for the task spanning the bad date, need to output 2 tasks to the same data dir to avoid splitting up data from the same year
-    if (end_date.month != 12) or (end_date.day != 31): # bad year start of split
+    if (end_date.month == LANDSAT_BAD_DATE.month) and (end_date.year == LANDSAT_BAD_DATE.year): # bad date start of split
         next_end_date = download_log.loc[index+1, 'end_date']
         next_end_date_str=f'{next_end_date.month}-{next_end_date.day}-{next_end_date.year}'
-        dest_dir = os.path.join(args['ls_data_dir'], f'LS_{start_date_str}_{next_end_date_str}_{cleaned_roi_path}')
-    if (start_date.month != 1) or (start_date.day != 1): # bad year end of split
+        dest_dir = os.path.join(ls_data_dir, f'LS_{start_date_str}_{next_end_date_str}_{cleaned_roi_path}')
+    elif (start_date.month == LANDSAT_BAD_DATE.month) and (start_date.year == LANDSAT_BAD_DATE.year): # bad date end of split
         dest_dir = download_log.loc[index-1, 'dest_dir']
     else: # regular case
-        dest_dir = os.path.join(args['ls_data_dir'], task_name)
+        dest_dir = os.path.join(ls_data_dir, task_name)
 
     task_json = create_product_request_json(
         task_name=task_name,
         start_date=start_date_str,
         end_date=end_date_str,
         shp_file_path=roi_path,
-        product_layers=args['product_layers'],
+        product_layers=product_layers,
         file_type='geotiff'
     )
 
@@ -319,15 +328,15 @@ def create_post_request(download_log, index):
     head = login_earthaccess()
     # Submit task
     task_id = post_request(task_json, head, max_retries=10)
-    print(f'task id: {task_id}')
 
     # Update download log row with task_status, task_submitted_time, dest_dir, task_id
-    download_log_row['task_status'] = 'submitted'
-    download_log_row['task_submitted_time'] = datetime.now()
-    download_log_row['dest_dir'] = dest_dir
-    download_log_row['task_id'] = task_id
-    download_log.loc[index] = download_log_row
-        
+    download_log.loc[index, 'task_status'] = 'submitted'
+    download_log.loc[index, 'task_submitted_time'] = datetime.now()
+    download_log.loc[index, 'dest_dir'] = dest_dir
+    download_log.loc[index, 'task_id'] = task_id
+    
+    # Update csv
+    download_log.to_csv(download_log_path, index=False)
     pass
 
 

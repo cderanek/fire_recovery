@@ -20,7 +20,6 @@ if __name__ == '__main__':
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid_done_template=sys.argv[3]
-    # prioritize_sensitivity = bool(sys.argv[3]) # if true, submit/monitor sensitivity fires, then exit
 
 
     # read in jsons
@@ -32,23 +31,24 @@ if __name__ == '__main__':
 
     # create download log (organized by sensitivity, fireid, date)
     download_log, download_log_path = create_download_log(config, perfire_config)
-
+    print(f'Download log can be found at: {download_log_path}')
 
     # while not all tasks ready, keep looping
     not_done = True
 
     while not_done:
-
-        # if <25 jobs active, submit tasks until up to 25
+        # if <25 jobs active and there are unsubmitted tasks left to submit, submit tasks until up to 25
         active_jobs_count = (
             (download_log['ndvi_mosaic_complete']==False) &
             (download_log['task_status'] == 'submitted') &
             (download_log['get_bundle_tries_left']>0)
             ).sum()
         jobs_to_submit_count = max(25 - active_jobs_count, 0)
-        next_job_row_index = download_log[download_log['task_status'] == 'unsubmitted'].iloc[0]
-        for i in range(next_job_row_index, min(next_job_row_index+jobs_to_submit_count, len(download_log))):
-            create_post_request(download_log.loc[i])
+        unsubmitted_tasks = download_log[download_log['task_status'] == 'unsubmitted']
+        if len(unsubmitted_tasks) > 0:
+            next_job_row_index = unsubmitted_tasks['submit_order'].values[0]
+            for i in range(next_job_row_index, min(next_job_row_index+jobs_to_submit_count, len(download_log))):
+                create_post_request(download_log, download_log_path, i, config)
 
         # update status of all submitted, incomplete jobs
         download_log, new_fires_ready = update_status_incomplete_tasks(download_log, download_log_path)
