@@ -26,7 +26,7 @@ if [ $SGE_TASK_ID -eq 1 ]; then
     # checkpoint 1
     snakemake --rulegraph | dot -Tpng > docs/images/rulegraph.png
     snakemake coordinate_appeears_requests --rulegraph | dot -Tpng > docs/images/rulegraph_baselayers.png
-    snakemake --profile profiles/age get_baselayers
+    snakemake --profile profiles/age coordinate_appeears_requests
     snakemake --dag | dot -Tpng > docs/images/baselayers_dag.png
 fi
 
