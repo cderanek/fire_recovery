@@ -17,20 +17,30 @@
 module load anaconda3
 conda activate RIO_GPD
 
-# checkpoint 1: create baselayers + create recovery maps for all the sensitivity analysis fires
+# add access to qsub commands
+export PATH=/u/systems/UGE8.6.4/bin/lx-amd64:$PATH
+
+# Task 1: checkpoints 1 and 2
+# checkpoint 1: create baselayers
+# checkpoint 2: start running coordinate_appears_tasks job + create recovery maps
 if [ $SGE_TASK_ID -eq 1 ]; then
+    # checkpoint 1
     snakemake --rulegraph | dot -Tpng > docs/images/rulegraph.png
-    snakemake sensitivity_fires_done --rulegraph | dot -Tpng > docs/images/rulegraph_sensitivity.png
-    snakemake --profile profiles/age sensitivity_fires_done
+    snakemake get_baselayers --rulegraph | dot -Tpng > docs/images/rulegraph_baselayers.png
+    snakemake --profile profiles/age get_baselayers
+
+    # checkpoint 2
+    snakemake allfire_recovery --rulegraph | dot -Tpng > docs/images/rulegraph_allfires.png
+    snakemake --profile profiles/age allfire_recovery
 fi
 
-# checkpoint 2: create recovery maps for all remaining fires
+# checkpoint 3: repeat checkpoint 2 to ensure all fires done
 if [ $SGE_TASK_ID -eq 2 ]; then
     snakemake allfire_recovery --rulegraph | dot -Tpng > docs/images/rulegraph_allfires.png
     snakemake --profile profiles/age allfire_recovery
 fi
 
-# checkpoint 3: merge recovery maps and run analyses (run to end of workflow)
+# checkpoint 4: merge recovery maps and run analyses (run to end of workflow)
 if [ $SGE_TASK_ID -eq 3 ]; then
     snakemake --rulegraph | dot -Tpng > docs/images/rulegraph_checkpoint3.png
     snakemake --profile profiles/age

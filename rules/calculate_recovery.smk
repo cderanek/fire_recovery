@@ -3,7 +3,7 @@ import json, sys, os
 configfile: 'configs/config.yml'
 sys.path.append('rules/')
 from common import *
-localrules: potential_ready_flags, sensitivity_fires_done, allfire_recovery, generate_fire_list
+localrules: potential_ready_flags, allfire_recovery, generate_fire_list
 
 
 ### Set paths based on testing mode ###
@@ -53,7 +53,7 @@ rule make_recovery_config:
 ## HELPER FUNCTIONS (ORGANIZE DOWNLOAD PRIORITY)
 checkpoint generate_fire_list:
     input:
-        get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH)
+        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH), # get baselayers
     
     output:
         get_path("logs/baselayers/done/ready_to_generate_fireids.done", ROI_PATH)
@@ -74,7 +74,8 @@ def get_fireids():
         # Initialize fireids priority ict
         FIREIDS_PRIORITY = {
                 'sensitivity_fireids': set(),
-                'remaining_fireids': set()
+                'remaining_fireids': set(),
+                'all_fireids': set()
             }
         # Get list of all fireids from wumi csv
         wumi_csv_path = f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}wumi_data.csv'
@@ -86,7 +87,7 @@ def get_fireids():
         if os.path.exists(sensitivity_csv_path):
             sensitivity_data = pd.read_csv(sensitivity_csv_path)[['fireid', 'sensitivity_selected']]
             fireids_sensitivity = set(list(sensitivity_data.loc[sensitivity_data['sensitivity_selected']==True, 'fireid'].values))
-            FIREIDS_PRIORITY['sensitivity_fireids'] = fireids_sensitivity
+            FIREIDS_PRIORITY['sensitivity_fireids'] = fireids_sensitivity & all_fireids # from the full list of all fires in the sensitivity list, get the ones that are also in our ROI
 
         # Update list of remaining fireids
         FIREIDS_PRIORITY['remaining_fireids'] = all_fireids - fireids_sensitivity
@@ -104,11 +105,11 @@ def get_sensitivity_fireids(wildcards):
                   fireid=list(fireids['sensitivity_fireids']))
 
 
-def get_remaining_fireids(wildcards):
+def get_all_fireids(wildcards):
     checkpoints.generate_fire_list.get()
     fireids = get_fireids()
     return expand(get_path('logs/calculate_recovery/done/perfire_recovery_{fireid}.done', ROI_PATH), 
-                  fireid=list(fireids['remaining_fireids']))
+                  fireid=list(fireids['all_fireids']))
 
 
 ## COORDINATOR FOR FIRE DOWNLOADS
@@ -120,13 +121,12 @@ rule coordinate_appeears_requests:
     input:
         # need all baselayers in-place before we can submit the perfire recovery qsub task array
         get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
-        # need config files with params for running download, calculate_recovery scripts
-        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
-        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH)
         
     params:
         conda_env='EARTHACCESS',
         email=config['NOTIFY_EMAIL'],
+        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
+        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH),
         fireid_done_flag_template=get_path('logs/calculate_recovery/done/ready_to_download_fireid.done', ROI_PATH)
 
     conda: 
@@ -149,8 +149,8 @@ rule coordinate_appeears_requests:
         """
         workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests.sh \
              {params.conda_env} \
-             {input.main_config_json} \
-             {input.perfire_config_json} \
+             {params.main_config_json} \
+             {params.perfire_config_json} \
              {params.fireid_done_flag_template} \
              {output.done_flag} > {log.stdout} 2> {log.stderr}
         """
@@ -173,29 +173,12 @@ rule potential_ready_flags:
     run:
         pass
 
+
 ## TRIGGER DOWNLOADS/RECOVERY CALCS
-# Batch 1: Target running sensitivity fires
-rule sensitivity_fires_done:
-    input:
-        get_sensitivity_fireids
-    
-    log: 
-        stdout=get_path('logs/calculate_recovery/sensitivity_perfire_recovery.log', ROI_PATH),
-        stderr=get_path('logs/calculate_recovery/sensitivity_perfire_recovery.err', ROI_PATH)
-
-    params:
-        email=config['NOTIFY_EMAIL']
-
-    output:
-        done_flag=get_path('logs/calculate_recovery/done/sensitivity_perfire_recovery.done', ROI_PATH)
-
-    shell: "touch {output.done_flag}  > {log.stdout} 2> {log.stderr}"
-
-
-# Batch 2: Run all other fires
 rule allfire_recovery:
     input:
-        get_remaining_fireids
+        get_all_fireids,
+        get_path('logs/calculate_recovery/done/coordinate_appeears_requests.done', ROI_PATH) # force run of coordinating job that submits appeears requests
 
     log: 
         stdout=get_path('logs/calculate_recovery/all_perfire_recovery.log', ROI_PATH),
@@ -216,13 +199,8 @@ rule perfire_recovery:
     download LS time series -> process LS time series to seasonal NDVI -> use NDVI and merged baselayers to calculate per-fire recovery time
     """
     input:
-        # need all baselayers in-place before we can submit the perfire recovery tasks
-        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH),
         # need to know job is ready to download before submitting
         get_path('logs/calculate_recovery/done/ready_to_download_{fireid}.done', ROI_PATH),
-        # need config files with params for running download, calculate_recovery scripts
-        main_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}main_config.json', ROI_PATH),
-        perfire_config_json=get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_CONFIGS']}perfire_config.json', ROI_PATH)
         
     params:
         conda_env_download='EARTHACCESS',

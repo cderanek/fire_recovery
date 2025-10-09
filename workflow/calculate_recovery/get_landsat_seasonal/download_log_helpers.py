@@ -183,7 +183,7 @@ def format_download_log(download_log):
     download_log = download_log.astype({
         'fire_name': str,
         'fireid': str,
-        'sensitivity': bool
+        'sensitivity': bool,
         'fire_year': int,
         'start_date': object, 
         'end_date': object,

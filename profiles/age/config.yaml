@@ -3,7 +3,7 @@ cluster-generic-submit-cmd: "qsub -cwd \
              -o logs/cluster/{rule}_{wildcards}.cluster.out \
              -e logs/cluster/{rule}_{wildcards}.cluster.err \
              -j y \
-             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G{pe_flag} -pe shared {resources.cpus} \
+             -l h_rt={resources.runtime}:00:00,h_data={resources.mem_gb}G{resources.pe_flag} -pe shared {resources.cpus} \
              -M {params.email} \
              -m bea"
 default-resources:
@@ -11,7 +11,7 @@ default-resources:
   - mem_gb=20
   - cpus=1
   - pe_flag=""
-# jobs: 5 # capping the max concurrent jobs kind of low to avoid overwhelming AppEEARS with requests (each job = ~4 appeears jobs)
+jobs: 10 # capping the max concurrent jobs kind of low to avoid overwhelming AppEEARS with requests (each job = ~4 appeears jobs)
 latency-wait: 30
 keep-going: true
 rerun-incomplete: true

@@ -23,9 +23,7 @@ else: ROI_PATH = config['ROI']
 ### Define targets for the full workflow ###
 rule all:
     input:
-        get_path('logs/baselayers/done/all_baselayers_merged.done', ROI_PATH), # get baselayers
         get_path('logs/calculate_recovery/done/all_perfire_recovery.done', ROI_PATH),   # calculate recovery for all fireids
-        get_path('logs/calculate_recovery/done/coordinate_appeears_requests.done', ROI_PATH) # force run of coordinating job that submits appeears requests
 
 ### Download baselayers for our ROI ###
 BASELAYER_FILES = list(config['BASELAYERS'].keys())
@@ -42,7 +40,7 @@ rule get_baselayers:
     """
     input:
         [get_path(config['BASELAYERS'][prod]['fname'], ROI_PATH) for prod in BASELAYER_FILES],
-        get_path("logs/baselayers/done/mtbs_bundles.done", ROI_PATH)
+        get_path('logs/calculate_recovery/done/makeconfigs.done', ROI_PATH)
 
     params:
         email=config['NOTIFY_EMAIL']
