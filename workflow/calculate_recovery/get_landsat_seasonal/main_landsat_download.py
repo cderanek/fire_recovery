@@ -11,6 +11,7 @@ from merge_process_scenes import mosaic_ndvi_timeseries
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def process_all_years(args: dict):
     # keep working on download until all years complete
+    download_log = pd.read_csv(args['download_log_csv'])
     unsuccessful_years_w_retries = download_log['start_date'][
         (download_log['fireid']==args['fireid']) & 
         (download_log['ndvi_mosaic_complete']==False) & 
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     fire_metadata = perfire_json[fireid]['FIRE_METADATA']
     file_paths = perfire_json[fireid]['FILE_PATHS']
     download_log_path = os.path.join(
-        os.path.basename(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV']),
+        os.path.dirname(config['RECOVERY_PARAMS']['LOGGING_PROCESS_CSV']),
         'allfires_download_log.csv'
     )
 

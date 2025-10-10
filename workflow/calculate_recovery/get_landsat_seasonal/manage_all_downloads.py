@@ -6,7 +6,7 @@
 # This script will run with ~10G for 2 weeks on the lab node, 
 # quiety triggering larger 24hr jobs on the shared nodes in the background
 
-import json
+import json, sys
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -16,7 +16,7 @@ from download_log_helpers import *
 
 if __name__ == '__main__':
     print(datetime.now())
-    print(f'Running manage_all_downloads.py with arguments {'\n'.join(sys.argv)}\n')
+    # print(f'Running manage_all_downloads.py with arguments {'\n'.join(sys.argv)}\n')
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid_done_template=sys.argv[3]
@@ -48,13 +48,13 @@ if __name__ == '__main__':
         if len(unsubmitted_tasks) > 0:
             next_job_row_index = unsubmitted_tasks['submit_order'].values[0]
             for i in range(next_job_row_index, min(next_job_row_index+jobs_to_submit_count, len(download_log))):
-                create_post_request(download_log, download_log_path, i, config)
+                create_post_request(download_log, download_log_path, i, config, perfire_config)
 
         # update status of all submitted, incomplete jobs
         download_log, new_fires_ready = update_status_incomplete_tasks(download_log, download_log_path)
 
         # for fires where all the tasks are complete, create done flag
-        [suprocess.run(
+        [subprocess.run(
             ['touch', fireid_done_template.replace('fireid',fireid)]
             ) for fireid in new_fires_ready]
 
@@ -69,6 +69,6 @@ if __name__ == '__main__':
         not_done = jobs_not_ready_count>0
         
         if not_done:
-            print(f'Still have {jobs_not_ready_count} jobs over {unique_fires_left} unique fires left to complete.', flush=True)
+            print(f'Still have {jobs_not_ready_count} jobs over {len(unique_fires_left)} unique fires left to complete.', flush=True)
         else:
             print('All fires are ready for download!')

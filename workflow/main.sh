@@ -46,12 +46,12 @@ if [ $SGE_TASK_ID -eq 2 ]; then
         # Try to resubmit snake to look for new fires to process
         # won't run if previous job is still running (bc lock on snake)
         snakemake --profile profiles/age \
+            allfire_recovery \
             --rerun-incomplete \
-            --quiet \
-            allfire_recovery
+            --quiet
         
         # If snakemake exits successfully and found nothing to do, we're done
-        if snakemake --profile profiles/age --dryrun --quiet allfire_recovery 2>&1 | grep -q "Nothing to be done"; then
+        if snakemake --profile profiles/age allfire_recovery  --dryrun 2>&1 | grep -q "Nothing to be done"; then
             echo "=== All fires processed! Exiting early at $(date) ==="
             exit 0
         fi
@@ -63,26 +63,33 @@ fi
 # checkpoint 4: merge recovery maps and run analyses (run to end of workflow)
 if [ $SGE_TASK_ID -eq 3 ]; then
     # checkpoint 3 (same as checkpoint 2)
-    # submit separate, small job to coordinate appeears downloads 
-    qsub workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh
+    
+    # Check if all fires are already processed before submitting coordination job
+    if snakemake --profile profiles/age allfire_recovery --dryrun 2>&1 | grep -q "Nothing to be done"; then
+        echo "=== All fires already processed! Skipping coordination job and proceeding to checkpoint 4 at $(date) ==="
+    else
+        # submit separate, small job to coordinate appeears downloads 
+        qsub workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh
+        sleep 7200 # sleep 2 hours to allow time for the wrapper job to get picked up by our hpc
 
-    # keep checking back for new fires that are ready to download/process until the job is complete
-    # cap this at 200 loops in 2 weeks
-    for i in {1..200}; do
-        echo "=== Fire check $i at $(date) ==="
-        # Try to resubmit snake to look for new fires to process
-        # won't run if previous job is still running (bc lock on snake)
-        snakemake --profile profiles/age \
-            --rerun-incomplete \
-            --quiet \
-            allfire_recovery
-        
-        # If snakemake exits successfully and found nothing to do, we're done
-        if snakemake --profile profiles/age --dryrun --quiet allfire_recovery 2>&1 | grep -q "Nothing to be done"; then
-            echo "=== All fires processed! Exiting early at $(date) ==="
-            break  # exit the loop, continue to checkpoint 4
-        fi
-    done
+        # keep checking back for new fires that are ready to download/process until the job is complete
+        # cap this at 200 loops in 2 weeks
+        for i in {1..200}; do
+            echo "=== Fire check $i at $(date) ==="
+            # Try to resubmit snake to look for new fires to process
+            # won't run if previous job is still running (bc lock on snake)
+            snakemake --profile profiles/age \
+                allfire_recovery \
+                --rerun-incomplete \
+                --quiet
+            
+            # If snakemake exits successfully and found nothing to do, we're done
+            if snakemake --profile profiles/age allfire_recovery --dryrun 2>&1 | grep -q "Nothing to be done"; then
+                echo "=== All fires processed! Exiting early at $(date) ==="
+                break # exit loop, continue to checkpoint 4
+            fi
+        done
+    fi
 
     # checkpoint 4
     snakemake --rulegraph | dot -Tpng > docs/images/rulegraph_full.png

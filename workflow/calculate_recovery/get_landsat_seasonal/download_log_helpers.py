@@ -285,15 +285,18 @@ def create_download_log(
     return download_log, download_log_path
 
 
-def create_post_request(download_log, download_log_path, index, config):
-    download_log_row = download_log.iloc[index]
+def create_post_request(download_log, download_log_path, index, config, perfire_config):
+    download_log_row = download_log.loc[download_log['submit_order']==index].iloc[0]
+    print(download_log_row)
 
     if download_log_row['task_status']!='unsubmitted':
         print(f'Download row already submitted. Skipping row: \n{download_log_row}', flush=True)
         return None
 
     # Get LS download data
-    ls_data_dir = config['LANDSAT']['dir_name']
+    fireid = download_log_row['fireid']
+    file_paths = perfire_config[fireid]['FILE_PATHS']
+    ls_data_dir = file_paths['INPUT_LANDSAT_DATA_DIR']
     product_layers = config['LANDSAT']['PRODUCT_LAYERS']
 
     # create and submit task json
@@ -307,11 +310,11 @@ def create_post_request(download_log, download_log_path, index, config):
     # Format dest dir
     # for the task spanning the bad date, need to output 2 tasks to the same data dir to avoid splitting up data from the same year
     if (end_date.month == LANDSAT_BAD_DATE.month) and (end_date.year == LANDSAT_BAD_DATE.year): # bad date start of split
-        next_end_date = download_log.loc[index+1, 'end_date']
+        next_end_date = download_log.loc[download_log['submit_order']==index+1, 'end_date'].iloc[0]
         next_end_date_str=f'{next_end_date.month}-{next_end_date.day}-{next_end_date.year}'
         dest_dir = os.path.join(ls_data_dir, f'LS_{start_date_str}_{next_end_date_str}_{cleaned_roi_path}')
     elif (start_date.month == LANDSAT_BAD_DATE.month) and (start_date.year == LANDSAT_BAD_DATE.year): # bad date end of split
-        dest_dir = download_log.loc[index-1, 'dest_dir']
+        dest_dir = download_log.loc[download_log['submit_order']==index-1, 'dest_dir'].iloc[0]
     else: # regular case
         dest_dir = os.path.join(ls_data_dir, task_name)
 
@@ -330,10 +333,10 @@ def create_post_request(download_log, download_log_path, index, config):
     task_id = post_request(task_json, head, max_retries=10)
 
     # Update download log row with task_status, task_submitted_time, dest_dir, task_id
-    download_log.loc[index, 'task_status'] = 'submitted'
-    download_log.loc[index, 'task_submitted_time'] = datetime.now()
-    download_log.loc[index, 'dest_dir'] = dest_dir
-    download_log.loc[index, 'task_id'] = task_id
+    download_log.loc[download_log['submit_order']==index, 'task_status'] = 'submitted'
+    download_log.loc[download_log['submit_order']==index, 'task_submitted_time'] = datetime.now()
+    download_log.loc[download_log['submit_order']==index, 'dest_dir'] = dest_dir
+    download_log.loc[download_log['submit_order']==index, 'task_id'] = task_id
     
     # Update csv
     download_log.to_csv(download_log_path, index=False)
@@ -344,7 +347,6 @@ def update_status_incomplete_tasks(download_log, download_log_path):
     # for each task with 'submitted' download_status, ping appeears, and if ready, change status to 'ready_to_download'
     active_tasks = (download_log['ndvi_mosaic_complete']==False) & (download_log['task_status']=='submitted') & (download_log['get_bundle_tries_left']>0)
     submitted_tasks = download_log[['start_date', 'task_id']][active_tasks]
-    ready_fireids = []
 
     for index, (start_date, task_id) in submitted_tasks.iterrows():
         # ping appeears for this task
@@ -364,13 +366,17 @@ def update_status_incomplete_tasks(download_log, download_log_path):
                 download_log.loc[index, 'bundle'] = json.dumps(bundle)
                 download_log.loc[index, 'bundle_received_time'] = datetime.now()
                 download_log.loc[index, 'task_status'] = 'ready_to_download'
-                ready_fireids.append(download_log.loc[index, 'fireid'].values[0])
+
             else:
                 download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
             
-    # Update csv
-    download_log.to_csv(download_log_path, index=False)
-    time.sleep(SLEEP_TIME) # to enforce sleep time between requests
+        # Update csv
+        download_log.to_csv(download_log_path, index=False)
+
+    # Update list of ready fires
+    fires_not_ready = set(download_log.loc[download_log['task_status'] != 'ready_to_download', 'fireid'])
+    all_fires = set(download_log['fireid'])
+    ready_fireids = list(all_fires - fires_not_ready)
 
     # return fireids for new fires ready
     return download_log, ready_fireids
