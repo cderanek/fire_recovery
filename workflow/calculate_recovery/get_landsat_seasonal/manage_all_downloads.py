@@ -16,7 +16,7 @@ from download_log_helpers import *
 
 if __name__ == '__main__':
     print(datetime.now())
-    # print(f'Running manage_all_downloads.py with arguments {'\n'.join(sys.argv)}\n')
+    print(f'Running manage_all_downloads.py with arguments {'\n'.join(sys.argv)}\n')
     main_config_path=sys.argv[1]
     perfire_config_path=sys.argv[2]
     fireid_done_template=sys.argv[3]

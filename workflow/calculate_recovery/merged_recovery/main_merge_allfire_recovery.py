@@ -54,7 +54,7 @@ def aggregate_recovery_summaries(
     return None
 
 
-def merge_all_recovery_rasters(out_summary_path):
+def merge_all_recovery_rasters(out_summary_path, total_aggregate_maps):
     '''Once all subsets of fires have been merged by aggregate_recovery_summaries, merge all the aggregate recovery maps into 1 final map.
     '''
     all_rasters = glob.glob(f'{out_summary_path}/merged_recovery_time_*.tif')
@@ -120,13 +120,19 @@ def merge_all_recovery_rasters(out_summary_path):
 
 
 if __name__ == '__main__':
+    print(datetime.now())
+    print(f'Running main_merge_allfire_recovery.py with arguments {'\n'.join(sys.argv)}\n', flush=True)
     config_path = sys.argv[1]
     uid_start = int(sys.argv[2])
-    uid_end = uint(sys.argv[3])
+    uid_end = int(sys.argv[3])
     merge_all = str(sys.argv[4])=='True'
     total_aggregate_maps = sys.argv[5]
-    print(f'Merge all: {merge_all}', flush=True)
 
+    # read in jsons
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+
+    # aggregate from uid_start to uid_end
     aggregate_recovery_summaries(
         recovery_dir='/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_reconfig_temporalmasking',
         out_summary_path='/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_reconfig_temporalmasking',
@@ -134,5 +140,6 @@ if __name__ == '__main__':
         uid_start=uid_start,
         uid_end=uid_end)
 
+    # merge all fires (if this is the last job)
     if merge_all:
-        merge_all_recovery_rasters(out_summary_path='')
+        merge_all_recovery_rasters(out_summary_path='', total_aggregate_maps)
