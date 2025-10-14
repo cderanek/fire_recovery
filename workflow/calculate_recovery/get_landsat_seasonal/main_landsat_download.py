@@ -10,8 +10,10 @@ from merge_process_scenes import mosaic_ndvi_timeseries
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def process_all_years(args: dict):
+    # open download log
+    download_log = read_csv_wait_for_content(args['download_log_csv'])
+
     # keep working on download until all years complete
-    download_log = pd.read_csv(args['download_log_csv'])
     unsuccessful_years_w_retries = download_log['start_date'][
         (download_log['fireid']==args['fireid']) & 
         (download_log['ndvi_mosaic_complete']==False) & 
@@ -30,7 +32,7 @@ def process_all_years(args: dict):
             (download_log['download_bundle_tries_left']>0)
         ]
         for index, (start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}')
+            print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}', flush=True)
             head = login_earthaccess()
             # try to download bundle
             dest_dir_complete = None
@@ -85,14 +87,14 @@ def process_all_years(args: dict):
         lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
         try:
             with lock:
-                csv = pd.read_csv(args['download_log_csv'])
+                csv = read_csv_wait_for_content(args['download_log_csv'])
                
                 # update rows associated with this fireid
                 mask = csv['fireid'] == fireid
                 csv.loc[mask] = download_log[mask]
                 
-            # Save the updated csv
-            csv.to_csv(args['download_log_csv'], index=False)
+                # Save the updated csv
+                csv.to_csv(args['download_log_csv'], index=False)
         
         except filelock.Timeout:
             print("Could not acquire lock on file after waiting", flush=True)
@@ -136,5 +138,5 @@ if __name__ == "__main__":
     for (key, val) in args.items():
         print(key, val, flush=True)
     
-    # process all years with parallel workers (will skip any years that were successfully downloaded prior)
+    # process all years (will skip any years that were successfully downloaded prior)
     process_all_years(args)

@@ -2,6 +2,7 @@ import sys, os, glob, json
 import pandas as pd
 import numpy as np
 import filelock
+import time
 from datetime import datetime, timedelta
 from earthaccess_downloads import *
 from typing import List
@@ -43,14 +44,16 @@ def skip_bad_dates(
 
 def get_successful_failed_years(seasonal_dir, desired_years_range):
     successful_years, failed_years = [], []
-    curr_yr_expected_seasons = np.floor((4*datetime.now().month)/12.0)
+    curr_yr_expected_seasons = 2 #np.floor((4*datetime.now().month)/12.0) ## having appeears access errors downloading after mid-year 2025, truncating for now
     for year in desired_years_range:
         mosaiced = []
         for season in ['01', '02', '03', '04']:
             mosaiced.extend(glob.glob(os.path.join(seasonal_dir, f'{year}{season}_season_mosaiced.tif')))
 
-        if len(mosaiced)==4: successful_years.append(year)
-        elif (year == int(datetime.now().year)) and (len(mosaiced) >= curr_yr_expected_seasons): successful_years.append(year)
+        if len(mosaiced)==4: 
+            successful_years.append(year)
+        elif (year == int(datetime.now().year)) and (len(mosaiced) >= curr_yr_expected_seasons): 
+            successful_years.append(year)
         else: failed_years.append(year)
 
     return successful_years, failed_years
@@ -77,8 +80,8 @@ def report_results(ls_seasonal_dir, years_range, progress_log_path, fireid):
             csv.loc[mask, 'successful_years'] = str(successful_years)
             csv.loc[mask, 'failed_years'] = str(failed_years)
             
-        # Save the updated csv
-        csv.to_csv(progress_log_path, index=False)
+            # Save the updated csv
+            csv.to_csv(progress_log_path, index=False)
         
     except filelock.Timeout:
         print("Could not acquire lock on file after waiting", flush=True)
@@ -380,3 +383,45 @@ def update_status_incomplete_tasks(download_log, download_log_path):
 
     # return fireids for new fires ready
     return download_log, ready_fireids
+
+
+def read_csv_wait_for_content(filepath, timeout=120, check_interval=0.5):
+    """Wait until file has content and is readable."""
+    start_time = time.time()
+    last_error = None
+    
+    while time.time() - start_time < timeout:
+        try:
+            # Check if file exists and has content
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                # Try to read the CSV
+                df = pd.read_csv(filepath)
+                # Verify we got actual data
+                if len(df) > 0 and len(df.columns) > 0:
+                    return df
+                else:
+                    # File read but empty, wait and retry
+                    time.sleep(check_interval)
+                    continue
+            else:
+                # File doesn't exist or is empty
+                time.sleep(check_interval)
+                continue
+                
+        except pd.errors.EmptyDataError as e:
+            # File is being written to or is temporarily empty
+            last_error = e
+            time.sleep(check_interval)
+            continue
+        except (PermissionError, IOError) as e:
+            # File is locked
+            last_error = e
+            time.sleep(check_interval)
+            continue
+        except Exception as e:
+            # Other pandas parsing errors (partial write)
+            last_error = e
+            time.sleep(check_interval)
+            continue
+    
+    raise TimeoutError(f"Could not read valid data from {filepath} after {timeout} seconds. Last error: {last_error}")
