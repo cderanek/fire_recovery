@@ -246,7 +246,7 @@ rule perfire_recovery:
     resources:
         cpus=1,#4,
         runtime=24,
-        mem_gb=35
+        mem_gb=50
 
     shell: 
         """

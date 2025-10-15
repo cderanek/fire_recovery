@@ -41,8 +41,12 @@ def process_all_years(args: dict):
             # Update download log
             if dest_dir_complete:
                 download_log.loc[index, 'download_complete'] = True
+
             else:
                 download_log.loc[index, 'download_bundle_tries_left'] = download_log.loc[index, 'download_bundle_tries_left'] - 1
+
+            # Update download log csv
+            update_csv_wlock(args['download_log_csv'], download_log, fireid)
         
         # MOSAIC
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic
@@ -68,6 +72,9 @@ def process_all_years(args: dict):
                 print(f'Failed to mosaic from {dest_dir}.')
                 print(e)
                 download_log.loc[index, 'mosaic_tries_left'] = download_log.loc[index, 'mosaic_tries_left'] - 1
+
+            # Update download log csv
+            update_csv_wlock(args['download_log_csv'], download_log, fireid)
         
         # ASSESS PROGRESS + UPDATE LOG
         # re-check the list of unsuccessful years with retries left to determine if we should keep looping
@@ -81,23 +88,6 @@ def process_all_years(args: dict):
         
         # Update final results report
         report_results(args['ls_seasonal_dir'], args['years_range'], args['progress_log_csv'], args['fireid'])
-
-        # Update download log csv
-        lock_file = args['download_log_csv'] + '.lock'
-        lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
-        try:
-            with lock:
-                csv = read_csv_wait_for_content(args['download_log_csv'])
-               
-                # update rows associated with this fireid
-                mask = csv['fireid'] == fireid
-                csv.loc[mask] = download_log[mask]
-                
-                # Save the updated csv
-                csv.to_csv(args['download_log_csv'], index=False)
-        
-        except filelock.Timeout:
-            print("Could not acquire lock on file after waiting", flush=True)
         
         
 

@@ -425,3 +425,22 @@ def read_csv_wait_for_content(filepath, timeout=120, check_interval=0.5):
             continue
     
     raise TimeoutError(f"Could not read valid data from {filepath} after {timeout} seconds. Last error: {last_error}")
+
+
+def update_csv_wlock(f_to_update, download_log, fireid, timeout=60):
+    # Update download log csv
+    lock_file = f_to_update + '.lock'
+    lock = filelock.FileLock(lock_file, timeout=timeout)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
+    try:
+        with lock:
+            csv = read_csv_wait_for_content(f_to_update)
+               
+            # update rows associated with this fireid
+            mask = csv['fireid'] == fireid
+            csv.loc[mask] = download_log[mask]
+            
+            # Save the updated csv
+            csv.to_csv(f_to_update, index=False)
+
+    except filelock.Timeout:
+        print("Could not acquire lock on file after waiting", flush=True)
