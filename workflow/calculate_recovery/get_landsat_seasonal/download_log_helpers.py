@@ -11,7 +11,7 @@ sys.path.append("workflow/utils/")
 from geo_utils import export_to_tiff, reproj_align_rasters, buffer_firepoly
 
 LANDSAT_BAD_DATE = datetime(2024, 6, 8) # this date causes jobs to fail -- temp DAAC issue
-SLEEP_TIME = 60*2 # 2min pause between pings
+SLEEP_TIME = 10 # 10sec pause between requests
 
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
@@ -333,7 +333,7 @@ def create_post_request(download_log, download_log_path, index, config, perfire_
     # Log in to earth access
     head = login_earthaccess()
     # Submit task
-    task_id = post_request(task_json, head, max_retries=10)
+    task_id = post_request(task_json, head, max_retries=30)
 
     # Update download log row with task_status, task_submitted_time, dest_dir, task_id
     download_log.loc[download_log['submit_order']==index, 'task_status'] = 'submitted'

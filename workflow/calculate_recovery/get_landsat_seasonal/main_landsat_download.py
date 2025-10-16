@@ -9,6 +9,28 @@ from merge_process_scenes import mosaic_ndvi_timeseries
 
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
+def download_task(submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid):
+    print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}', flush=True)
+    head = login_earthaccess()
+    
+    # Try to download bundle
+    dest_dir_complete = download_landsat_bundle(bundle, task_id, head, dest_dir)
+    print('DEST DIR COMPLETE FLAG')
+    print(f'{dest_dir_complete}, {type(dest_dir_complete)}', flush=True)
+    
+    # Update download log
+    if type(dest_dir_complete) == type(' '):
+        print('download complete')
+        download_log.loc[download_log['submit_order']==submission_order, 'download_complete'] = True
+    else:
+        download_log.loc[download_log['submit_order']==submission_order, 'download_bundle_tries_left'] = download_log.loc[download_log['submit_order']==submission_order, 'download_bundle_tries_left'] - 1
+        
+    # Update download log csv
+    update_csv_wlock(args['download_log_csv'], download_log, fireid)
+    
+    return dest_dir_complete
+
+
 def process_all_years(args: dict):
     # open download log
     download_log = read_csv_wait_for_content(args['download_log_csv'])
@@ -16,37 +38,27 @@ def process_all_years(args: dict):
     # keep working on download until all years complete
     unsuccessful_years_w_retries = download_log['start_date'][
         (download_log['fireid']==args['fireid']) & 
-        (download_log['ndvi_mosaic_complete']==False) & 
-        (download_log['get_bundle_tries_left']>0) & 
-        (download_log['download_bundle_tries_left']>0) & 
+        (download_log['ndvi_mosaic_complete']==False) &
+        ((download_log['download_bundle_tries_left']>0) | (download_log['download_complete']==True)) & 
         (download_log['mosaic_tries_left']>0)
     ]
+    print(f'YEARS TO DOWNLOAD/MOSAIC: {unsuccessful_years_w_retries}', flush=True)
+    print(download_log[['start_date', 'download_bundle_tries_left']][download_log['fireid']==args['fireid']], flush=True)
     while len(unsuccessful_years_w_retries) > 0:
         # DOWNLOAD
         # for each task with a bundle, but incomplete download, try to download bundle
-        incompletedownload_years_df = download_log[['start_date', 'task_id', 'bundle', 'dest_dir']][
+        incompletedownload_years_df = download_log[['submit_order','start_date', 'task_id', 'bundle', 'dest_dir']][
             (download_log['fireid']==args['fireid']) &
             (download_log['ndvi_mosaic_complete']==False) & 
             (download_log['download_complete']==False) & 
-            (download_log['bundle'].notna()) & 
+            # (download_log['bundle'].notna()) & 
             (download_log['download_bundle_tries_left']>0)
         ]
-        for index, (start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}', flush=True)
-            head = login_earthaccess()
-            # try to download bundle
-            dest_dir_complete = None
-            dest_dir_complete = download_landsat_bundle(bundle, task_id, head, dest_dir)
 
-            # Update download log
-            if dest_dir_complete:
-                download_log.loc[index, 'download_complete'] = True
+        print(f'YEARS TO DOWNLOAD: {incompletedownload_years_df['start_date']}', flush=True)
 
-            else:
-                download_log.loc[index, 'download_bundle_tries_left'] = download_log.loc[index, 'download_bundle_tries_left'] - 1
-
-            # Update download log csv
-            update_csv_wlock(args['download_log_csv'], download_log, fireid)
+        for _, (submission_order, start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
+            download_task(submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid)
         
         # MOSAIC
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic

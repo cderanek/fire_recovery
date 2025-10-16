@@ -6,7 +6,7 @@
 # request resources:
 #$ -l h_rt=336:00:00,h_data=10G,highp
 
-#$ -t 1-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
+#$ -t 2-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
 #$ -tc 1                        # maximum concurrent jobs = 1 (run sequentially)
 # error = Merged with joblog
 #$ -o main_snakefile_joblog.$JOB_ID.$TASK_ID
@@ -47,8 +47,7 @@ if [ $SGE_TASK_ID -eq 2 ]; then
         # won't run if previous job is still running (bc lock on snake)
         snakemake --profile profiles/age \
             allfire_recovery \
-            --rerun-incomplete \
-            --quiet
+            --rerun-incomplete
         
         # If snakemake exits successfully and found nothing to do, we're done
         if snakemake --profile profiles/age allfire_recovery  --dryrun 2>&1 | grep -q "Nothing to be done"; then

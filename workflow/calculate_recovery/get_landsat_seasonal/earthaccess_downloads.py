@@ -10,10 +10,11 @@ import earthaccess
 import geopandas as gpd
 import numpy as np
 from netrc import netrc
+import rioxarray as rxr
 
 
 APPEEARS_API_ENDPOINT = 'https://appeears.earthdatacloud.nasa.gov/api/'
-SLEEP_TIME = 60*2 # 2min pause between requests
+SLEEP_TIME = 60*2 # 2min pause between requests when failure occurs
 
 
 def login_earthaccess():
@@ -113,11 +114,14 @@ def download_landsat_bundle(bundle, task_id, head, dest_dir):
     try:
         # Fill dictionary with file_id as keys and file_name as values
         if type(bundle)==type('s'): bundle = json.loads(bundle)
+        os.makedirs(dest_dir, exist_ok=True)
+        downloaded_files = os.listdir(dest_dir)
         files = {f['file_id']: f['file_name'] for f in bundle['files']}
-        
+        undownloaded_files = {f['file_id']: f['file_name'] for f in bundle['files'] if (f['file_name'].split('/')[-1] not in downloaded_files) and ('.tif' in f['file_name'] or '.nc' in f['file_name'])}
+        print(len(undownloaded_files.items()), len(files.items()), flush=True)
         # Iterate over all files in bundle, downloading all tif & nc files
-        for fileid, filename in files.items():
-            if ('tif' in filename) or ('nc' in filename):
+        for fileid, filename in undownloaded_files.items():
+            if ('.tif' in filename) or ('.nc' in filename):
                 dl = stream_bundle_file(task_id, head, fileid)
                 
                 # Create dir to store downloaded data, if it doesn't exist
@@ -126,31 +130,33 @@ def download_landsat_bundle(bundle, task_id, head, dest_dir):
                 else:
                     filename = filename
                 filepath = os.path.join(dest_dir, filename)
-                os.makedirs(dest_dir, exist_ok=True)
                 
                 # Write data 
                 with open(filepath, 'wb') as f: 
                     for data in dl.iter_content(chunk_size=8192): f.write(data) 
         print('Downloaded files can be found at: {}'.format(dest_dir), flush=True)
         
+        # Also, double check you can open all the expected tifs
+        for fileid, filename in files.items():
+            if ('tif' in filename):
+                try:
+                    filepath = os.path.join(dest_dir, filename.split('/')[1])
+                    with rxr.open_rasterio(filepath) as r:
+                        pass # just checking it opens
+
+                except Exception as e:
+                    print(f'Failed to open {filename}. Error: {e}')
+                    print('Retrying download')
+                    if not download_single_file(fileid, filename, bundle, task_id, head, dest_dir):
+                        return np.nan
+
         return dest_dir
     
     except Exception as e:
         print(f'Error downloading files for {dest_dir}. Error: {e}', flush=True)
         return np.nan
 
-    # Also, double check you can open all the expected tifs
-    for fileid, filename in files.items():
-        if ('tif' in filename):
-            try:
-                filepath = os.path.join(dest_dir, filename)
-                with rxr.open_rasterio(filepath) as r:
-                    pass # just checking it opens
-
-            except Exception as e:
-                print(f'Failed to open {filename}. Error: {e}')
-                print('Retrying download')
-                download_single_file(fileid, filename, bundle, task_id, head, dest_dir)
+    
 
 
 
