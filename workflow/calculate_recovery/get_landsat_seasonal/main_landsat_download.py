@@ -10,6 +10,7 @@ from merge_process_scenes import mosaic_ndvi_timeseries
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def download_task(submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid):
+    print(f'Current time: {datetime.now()}')
     print(f'Downloading bundle with start date: {start_date}; task_id: {task_id}', flush=True)
     head = login_earthaccess()
     

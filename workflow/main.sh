@@ -6,7 +6,7 @@
 # request resources:
 #$ -l h_rt=336:00:00,h_data=10G,highp
 
-#$ -t 2-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
+#$ -t 1-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
 #$ -tc 1                        # maximum concurrent jobs = 1 (run sequentially)
 # error = Merged with joblog
 #$ -o main_snakefile_joblog.$JOB_ID.$TASK_ID
@@ -35,7 +35,7 @@ if [ $SGE_TASK_ID -eq 2 ]; then
     # checkpoint 2
     snakemake allfire_recovery --rulegraph | dot -Tpng > docs/images/rulegraph_allfires.png
 
-    # submit separate, small job to coordinate appeears downloads 
+    # # submit separate, small job to coordinate appeears downloads 
     qsub workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh
     sleep 21600 # sleep 6 hours to allow time for the jobs to be proccessed on appeears
 
@@ -45,9 +45,21 @@ if [ $SGE_TASK_ID -eq 2 ]; then
         echo "=== Fire check $i at $(date) ==="
         # Try to resubmit snake to look for new fires to process
         # won't run if previous job is still running (bc lock on snake)
-        snakemake --profile profiles/age \
+        timeout 6h snakemake --profile profiles/age \
             allfire_recovery \
-            --rerun-incomplete
+            --rerun-incomplete \
+            --quiet
+
+        exit_code=$?
+    
+        if [ $exit_code -eq 124 ]; then
+            echo "=== 6 hour timeout reached at $(date). Previous jobs may still be running. ==="
+            echo "=== Will try again in next iteration. ==="
+        elif [ $exit_code -eq 0 ]; then
+            echo "=== Snakemake completed successfully ==="
+        else
+            echo "=== Snakemake exited with code $exit_code ==="
+        fi
         
         # If snakemake exits successfully and found nothing to do, we're done
         if snakemake --profile profiles/age allfire_recovery  --dryrun 2>&1 | grep -q "Nothing to be done"; then
@@ -77,10 +89,21 @@ if [ $SGE_TASK_ID -eq 3 ]; then
             echo "=== Fire check $i at $(date) ==="
             # Try to resubmit snake to look for new fires to process
             # won't run if previous job is still running (bc lock on snake)
-            snakemake --profile profiles/age \
+            timeout 6h snakemake --profile profiles/age \
                 allfire_recovery \
                 --rerun-incomplete \
                 --quiet
+
+            exit_code=$?
+    
+            if [ $exit_code -eq 124 ]; then
+                echo "=== 6 hour timeout reached at $(date). Previous jobs may still be running. ==="
+                echo "=== Will try again in next iteration. ==="
+            elif [ $exit_code -eq 0 ]; then
+                echo "=== Snakemake completed successfully ==="
+            else
+                echo "=== Snakemake exited with code $exit_code ==="
+            fi
             
             # If snakemake exits successfully and found nothing to do, we're done
             if snakemake --profile profiles/age allfire_recovery --dryrun 2>&1 | grep -q "Nothing to be done"; then

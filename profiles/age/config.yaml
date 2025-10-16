@@ -1,5 +1,6 @@
 executor: cluster-generic
-cluster-generic-submit-cmd: "qsub -cwd \
+cluster-generic-status-cmd: 'python profiles/age/cluster_status.py'
+cluster-generic-submit-cmd: "qsub -terse -cwd \
              -o logs/cluster/{rule}_{wildcards}.cluster.out \
              -e logs/cluster/{rule}_{wildcards}.cluster.err \
              -j y \
@@ -11,7 +12,7 @@ default-resources:
   - mem_gb=20
   - cpus=1
   - pe_flag=""
-jobs: 30 # capping the max concurrent jobs to avoid overwhelming AppEEARS with requests (each job = ~4 appeears jobs)
+jobs: 30 # capping the max concurrent jobs to avoid overwhelming AppEEARS with requests
 latency-wait: 30
 keep-going: true
 rerun-incomplete: true
