@@ -13,7 +13,7 @@ default-resources:
   - cpus=1
   - pe_flag=""
 jobs: 30 # capping the max concurrent jobs to avoid overwhelming AppEEARS with requests
-latency-wait: 30
+latency-wait: 5
 keep-going: true
 rerun-incomplete: true
 cluster-generic-cancel-cmd: "qdel"

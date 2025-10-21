@@ -6,7 +6,7 @@
 # request resources:
 #$ -l h_rt=336:00:00,h_data=10G,highp
 
-#$ -t 1-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
+#$ -t 2-3                       # task IDs (breaking the full snakefile workflow into 3 checkpoints)
 #$ -tc 1                        # maximum concurrent jobs = 1 (run sequentially)
 # error = Merged with joblog
 #$ -o main_snakefile_joblog.$JOB_ID.$TASK_ID
@@ -23,11 +23,12 @@ export PATH=/u/systems/UGE8.6.4/bin/lx-amd64:$PATH
 
 # checkpoint 1: create baselayers + sh script wrapper to coordinate appeears downloads
 if [ $SGE_TASK_ID -eq 1 ]; then
+    sleep 3600
     # checkpoint 1
     snakemake --rulegraph | dot -Tpng > docs/images/rulegraph.png
     snakemake coordinate_appeears_requests --rulegraph | dot -Tpng > docs/images/rulegraph_baselayers.png
     snakemake --profile profiles/age coordinate_appeears_requests
-    snakemake --dag | dot -Tpng > docs/images/baselayers_dag.png
+    snakemake get_baselayers --dag | dot -Tpng > docs/images/baselayers_dag.png
 fi
 
 # checkpoint 2: start running coordinate_appears_tasks job + create recovery maps
@@ -37,7 +38,7 @@ if [ $SGE_TASK_ID -eq 2 ]; then
 
     # # submit separate, small job to coordinate appeears downloads 
     qsub workflow/calculate_recovery/sh_scripts/coordinate_appeears_requests_wrapper.sh
-    sleep 21600 # sleep 6 hours to allow time for the jobs to be proccessed on appeears
+    # sleep 21600 # sleep 6 hours to allow time for the jobs to be proccessed on appeears
 
     # keep checking back for new fires that are ready to download/process until the job is complete
     # cap this at 200 loops in 2 weeks
@@ -47,7 +48,6 @@ if [ $SGE_TASK_ID -eq 2 ]; then
         # won't run if previous job is still running (bc lock on snake)
         timeout 6h snakemake --profile profiles/age \
             allfire_recovery \
-            --rerun-incomplete \
             --quiet
 
         exit_code=$?
@@ -91,7 +91,6 @@ if [ $SGE_TASK_ID -eq 3 ]; then
             # won't run if previous job is still running (bc lock on snake)
             timeout 6h snakemake --profile profiles/age \
                 allfire_recovery \
-                --rerun-incomplete \
                 --quiet
 
             exit_code=$?

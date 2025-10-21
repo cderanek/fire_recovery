@@ -11,7 +11,7 @@ sys.path.append("workflow/utils/")
 from geo_utils import export_to_tiff, reproj_align_rasters, buffer_firepoly
 
 LANDSAT_BAD_DATE = datetime(2024, 6, 8) # this date causes jobs to fail -- temp DAAC issue
-SLEEP_TIME = 10 # 10sec pause between requests
+SLEEP_TIME = 120 # 2min pause between requests
 
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
@@ -279,8 +279,8 @@ def create_download_log(
     download_log = pd.concat(download_log_dfs)                      # concat all perfire dfs
     download_log = format_download_log(download_log)                # format nicely
     download_log = download_log.sort_values(
-        by=['sensitivity', 'fireid', 'start_date']
-        )                                                           # sort by sensitivity, then fireid, then start date
+        by=['sensitivity', 'fireid', 'start_date'],
+        ascending=False)                                                           # sort by sensitivity, then fireid, then start date
     download_log['submit_order'] = range(len(download_log))
     os.makedirs(os.path.dirname(download_log_path), exist_ok=True)  # save csv
     download_log.to_csv(download_log_path, index=False)
@@ -313,13 +313,18 @@ def create_post_request(download_log, download_log_path, index, config, perfire_
     # Format dest dir
     # for the task spanning the bad date, need to output 2 tasks to the same data dir to avoid splitting up data from the same year
     if (end_date.month == LANDSAT_BAD_DATE.month) and (end_date.year == LANDSAT_BAD_DATE.year): # bad date start of split
-        next_end_date = download_log.loc[download_log['submit_order']==index+1, 'end_date'].iloc[0]
+        next_end_date = download_log.loc[download_log['submit_order']==index-1, 'end_date'].iloc[0]
         next_end_date_str=f'{next_end_date.month}-{next_end_date.day}-{next_end_date.year}'
         dest_dir = os.path.join(ls_data_dir, f'LS_{start_date_str}_{next_end_date_str}_{cleaned_roi_path}')
     elif (start_date.month == LANDSAT_BAD_DATE.month) and (start_date.year == LANDSAT_BAD_DATE.year): # bad date end of split
-        dest_dir = download_log.loc[download_log['submit_order']==index-1, 'dest_dir'].iloc[0]
+        # dest_dir = download_log.loc[download_log['submit_order']==index+1, 'dest_dir'].iloc[0]
+        prev_start_date = download_log.loc[download_log['submit_order']==index+1, 'start_date'].iloc[0]
+        prev_start_date_str=f'{prev_start_date.month}-{prev_start_date.day}-{prev_start_date.year}'
+        dest_dir = os.path.join(ls_data_dir, f'LS_{prev_start_date_str}_{end_date_str}_{cleaned_roi_path}')
     else: # regular case
         dest_dir = os.path.join(ls_data_dir, task_name)
+
+    print(f'TASK NAME: {task_name} DEST DIR: {dest_dir}')
 
     task_json = create_product_request_json(
         task_name=task_name,
@@ -349,29 +354,29 @@ def create_post_request(download_log, download_log_path, index, config, perfire_
 def update_status_incomplete_tasks(download_log, download_log_path):
     # for each task with 'submitted' download_status, ping appeears, and if ready, change status to 'ready_to_download'
     active_tasks = (download_log['ndvi_mosaic_complete']==False) & (download_log['task_status']=='submitted') & (download_log['get_bundle_tries_left']>0)
-    submitted_tasks = download_log[['start_date', 'task_id']][active_tasks]
+    submitted_tasks = download_log[['start_date', 'task_id', 'submit_order', 'fire_name']][active_tasks]
 
-    for index, (start_date, task_id) in submitted_tasks.iterrows():
+    for _, (start_date, task_id, submit_order, fire_name) in submitted_tasks.iterrows():
         # ping appeears for this task
         head = login_earthaccess()
         task_complete = ping_appears_once(task_id, head)
-        print(f'Pinging appeears for start date: {start_date}; task_id: {task_id}; ping response: \t {task_complete}', flush=True)
+        print(f'Pinging appeears for start date: {fire_name} {start_date}; task_id: {task_id}; ping response: \t {task_complete}', flush=True)
         time.sleep(SLEEP_TIME) # to enforce sleep time between requests
 
-        if task_complete:
+        if task_complete==True:
             # try to download bundles 
             print('task complete')
             bundle = try_get_bundle_once(task_id, head)
             print('received bundle')
 
             # Update download log
-            if bundle:
-                download_log.loc[index, 'bundle'] = json.dumps(bundle)
-                download_log.loc[index, 'bundle_received_time'] = datetime.now()
-                download_log.loc[index, 'task_status'] = 'ready_to_download'
+            if type(bundle)!=type(np.nan):
+                download_log.loc[download_log['submit_order']==submit_order, 'bundle'] = json.dumps(bundle)
+                download_log.loc[download_log['submit_order']==submit_order, 'bundle_received_time'] = datetime.now()
+                download_log.loc[download_log['submit_order']==submit_order, 'task_status'] = 'ready_to_download'
 
             else:
-                download_log.loc[index, 'get_bundle_tries_left'] = download_log.loc[index, 'get_bundle_tries_left'] - 1
+                download_log.loc[download_log['submit_order']==submit_order, 'get_bundle_tries_left'] = download_log.loc[download_log['submit_order']==submit_order, 'get_bundle_tries_left'] - 1
             
         # Update csv
         download_log.to_csv(download_log_path, index=False)

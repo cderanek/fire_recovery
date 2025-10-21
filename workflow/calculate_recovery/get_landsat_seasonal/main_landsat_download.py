@@ -1,12 +1,16 @@
 import sys, os, glob, json
 import pandas as pd
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 from download_log_helpers import *
 sys.path.append("workflow/utils/") 
 from earthaccess_downloads import *
 from merge_process_scenes import mosaic_ndvi_timeseries
 
+
+lock = Lock()
 
 ### Helper functions to process individual jobs, organize all years downloads, report results ##
 def download_task(submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid):
@@ -19,17 +23,24 @@ def download_task(submission_order, start_date, task_id, bundle, dest_dir, downl
     print('DEST DIR COMPLETE FLAG')
     print(f'{dest_dir_complete}, {type(dest_dir_complete)}', flush=True)
     
+    # Return results 
+    return {
+        'submission_order': submission_order,
+        'success': isinstance(dest_dir_complete, str)
+    }
+
+def update_download_log(result, download_log, args, fireid):
     # Update download log
-    if type(dest_dir_complete) == type(' '):
+    if result['success']:
         print('download complete')
-        download_log.loc[download_log['submit_order']==submission_order, 'download_complete'] = True
+        download_log.loc[download_log['submit_order']==result['submission_order'], 'download_complete'] = True
     else:
         download_log.loc[download_log['submit_order']==submission_order, 'download_bundle_tries_left'] = download_log.loc[download_log['submit_order']==submission_order, 'download_bundle_tries_left'] - 1
         
     # Update download log csv
     update_csv_wlock(args['download_log_csv'], download_log, fireid)
     
-    return dest_dir_complete
+    return download_log
 
 
 def process_all_years(args: dict):
@@ -58,9 +69,18 @@ def process_all_years(args: dict):
 
         print(f'YEARS TO DOWNLOAD: {incompletedownload_years_df['start_date']}', flush=True)
 
-        for _, (submission_order, start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
-            download_task(submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid)
-        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # Submit all tasks
+            futures = []
+            for _, (submission_order, start_date, task_id, bundle, dest_dir) in incompletedownload_years_df.iterrows():
+                future = executor.submit(download_task, submission_order, start_date, task_id, bundle, dest_dir, download_log, args, fireid)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                result = future.result()
+                with lock:
+                    download_log = update_download_log(result, download_log, args, fireid)
+
         # MOSAIC
         # for each task with a complete download, but incomplete ndvi_mosaic, try to create mosaic
         incomplete_mosaic_df = download_log[['start_date', 'end_date', 'dest_dir']][

@@ -44,6 +44,7 @@ if __name__ == '__main__':
             (download_log['get_bundle_tries_left']>0)
             ).sum()
         jobs_to_submit_count = max(25 - active_jobs_count, 0)
+        print(f'{active_jobs_count} activate jobs. Will submit {jobs_to_submit_count} jobs.')
         unsubmitted_tasks = download_log[download_log['task_status'] == 'unsubmitted']
         if len(unsubmitted_tasks) > 0:
             next_job_row_index = unsubmitted_tasks['submit_order'].values[0]
@@ -69,6 +70,6 @@ if __name__ == '__main__':
         not_done = jobs_not_ready_count>0
         
         if not_done:
-            print(f'Still have {jobs_not_ready_count} jobs over {len(unique_fires_left)} unique fires left to complete.', flush=True)
+            print(f'Still have {jobs_not_ready_count}/{len(download_log)} jobs over {len(unique_fires_left)} unique fires left to complete.', flush=True)
         else:
             print('All fires are ready for download!')

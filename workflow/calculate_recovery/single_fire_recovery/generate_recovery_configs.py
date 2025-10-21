@@ -64,7 +64,7 @@ def get_fire_metadata(config, ROI_PATH, fireinfo, sensitivity_fireids):
         'FIRE_DATE': f'{fireinfo['year']}-{str.zfill(str(fireinfo['month']),2)}-{str.zfill(str(fireinfo['day']),2)}',
         'FIRE_YEAR': fireinfo['year'],
         'FIRE_BOUNDARY_PATH': get_path(f'{config['RECOVERY_PARAMS']['RECOVERY_MAPS_DIR']}{fireinfo['name']}_{fireinfo['fireid']}/spatialinfo/', ROI_PATH),
-        'SENSITIVITY_ANALYSIS': fireinfo['fireid'] in sensitivity_fireids
+        'SENSITIVITY_ANALYSIS': fireinfo['fireid'] in sensitivity_fireids.values
     }
 
 
