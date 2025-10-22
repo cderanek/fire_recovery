@@ -93,10 +93,12 @@ def open_align_fire_rasters(
     grouping_rxr = xr.open_dataset(file_paths['BASELAYERS']['groupings'], format="NETCDF4", engine="netcdf4", chunks='auto')
     grouping_rxr_crs = grouping_rxr.spatial_ref.crs_wkt
     grouping_rxr = grouping_rxr.__xarray_dataarray_variable__.rio.write_crs(grouping_rxr_crs)
+    if fire_year == 1999: cutoff_date = np.datetime64('2000-01-01') # for fires in 1999, use the 1999 vegetation data
+    else: cutoff_date = fire_metadata['FIRE_DATE']
     # Only select the latest date pre-fire, make sure nodata vals are 0
     grouping_rxr = grouping_rxr \
         .isel(band=0) \
-        .sel(time=slice(np.datetime64('1984-01-01'), fire_metadata['FIRE_DATE'])) \
+        .sel(time=slice(np.datetime64('1984-01-01'), cutoff_date)) \
         .sortby("time").isel(time=-1) \
         .fillna(0).rio.set_nodata(0)
     
