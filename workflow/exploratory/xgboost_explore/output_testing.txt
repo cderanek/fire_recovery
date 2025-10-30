@@ -1,0 +1,53 @@
+(3, 40440, 23831)
+BASE DATA
+HISTORICAL CLIMATE
+(1, 40440, 23831)
+DISTURBANCE HISTORY
+(40440, 23831)
+MERGE
+<xarray.Dataset> Size: 40GB
+Dimensions:                                          (y: 40440, x: 23831)
+Coordinates:
+    spatial_ref                                      int64 8B 0
+    band                                             int64 8B 1
+Dimensions without coordinates: y, x
+Data variables: (12/23)
+    uid                                              (y, x) int16 2GB -12928 ...
+    elevation                                        (y, x) int16 2GB -128 ... 0
+    aspect                                           (y, x) int16 2GB -128 ... 0
+    slope                                            (y, x) int16 2GB -128 ... 0
+    burn_bndy_dist_km                                (y, x) int8 964MB -128 ....
+    severity                                         (y, x) int8 964MB -128 ....
+    ...                                               ...
+    3yrpost_summer_maxtempz_avg                      (y, x) int8 964MB -128 ....
+    1yrpre_summer_pdsi_avg                           (y, x) int8 964MB -128 ....
+    3yrpre_summer_pdsi_avg                           (y, x) int8 964MB -128 ....
+    1yrpost_summer_pdsi_avg                          (y, x) int8 964MB -128 ....
+    3yrpost_summer_pdsi_avg                          (y, x) int8 964MB -128 ....
+    avg_annual_fires_since84                         (y, x) float64 8GB nan ....
+SAMPLE POINTS
+Addding uid
+Addding elevation
+Addding aspect
+Addding slope
+Addding burn_bndy_dist_km
+Addding severity
+Addding count_burned_highsev_300mbuffer
+Addding count_pixels_unburnedlowsev_matchveg_300mbuffer
+Addding vegetation_type
+Addding wateryr_avg_pr_total
+Addding 1yrpre_winter_maxtempz_avg
+Addding 3yrpre_winter_maxtempz_avg
+Addding 1yrpost_winter_maxtempz_avg
+Addding 3yrpost_winter_maxtempz_avg
+Addding 1yrpre_summer_maxtempz_avg
+Addding 3yrpre_summer_maxtempz_avg
+Addding 1yrpost_summer_maxtempz_avg
+Addding 3yrpost_summer_maxtempz_avg
+Addding 1yrpre_summer_pdsi_avg
+Addding 3yrpre_summer_pdsi_avg
+Addding 1yrpost_summer_pdsi_avg
+Addding 3yrpost_summer_pdsi_avg
+Addding avg_annual_fires_since84
+Addding recovery_time_yrs
+Addding recovery_status_sampled
