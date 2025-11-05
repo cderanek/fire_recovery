@@ -56,7 +56,7 @@ band_info = {
         'dtype': np.int8,
         'units': 'dimensionless'
     },
-    'burn_bndy_dist_km_upperbound': {
+    'burn_bndy_dist': {
         'description': 'Distance, in hundreds of meters, from the burn boundary. Distance is reported rounded to the nearest 100 meters (ceiling). Distances >12,700m are reported as 127.',
         'nodata': nodata_value,
         'dtype': np.int8,

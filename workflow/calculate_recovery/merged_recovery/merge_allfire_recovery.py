@@ -1,9 +1,11 @@
-import os, re, shutil, gc
+import os, re, shutil, gc, subprocess
 import rioxarray as rxr
 import xarray as xr
 import rasterio as rio
 import pandas as pd
 import numpy as np
+import filelock
+from scipy.ndimage import uniform_filter
 
 # TODO: need to add layer for new recovery metrics, too
 
@@ -35,20 +37,28 @@ def get_ordered_fireUIDs(processing_progress_csv_path):
 
     # otherwise, make ordered fireids csv
     else:
-        # Order fires by date --> assign UID to each fire
-        sorted_fires = sort_dirs_by_date(summary_csv['fireid'])
-        uid_fireID_list = list(enumerate(fireID_list, start=0)) # create unique integer IDs (1-N) for each fireid
-        uid_fireID_df = pd.DataFrame(
-            uid_fireID_list,
-            columns=['uid', 'fireid']
-            )
+        lock_file = progress_log_path + '.lock'
+        lock = filelock.FileLock(lock_file, timeout=60)  # wait for lock, if necessary (other batch jobs for other fires may also be waiting to update csv)
+        try:
+            with lock:
+                summary_csv = pd.read_csv(progress_log_path)
+                # Order fires by date --> assign UID to each fire
+                sorted_fires = sort_dirs_by_date(summary_csv['fireid'])
+                uid_fireID_list = list(enumerate(fireID_list, start=0)) # create unique integer IDs (1-N) for each fireid
+                uid_fireID_df = pd.DataFrame(
+                    uid_fireID_list,
+                    columns=['uid', 'fireid']
+                    )
         
-        # create backup of original summary csv
-        shutil.copy(summary_csv_path, summary_csv_path.replace('.csv', '_backup.csv'))
+                # create backup of original summary csv
+                shutil.copy(summary_csv_path, summary_csv_path.replace('.csv', '_backup.csv'))
 
-        # Add UID column to existing summary csv and then save output
-        pd.merge([summary_csv, uid_fireID_df], on='fireid').to_csv(summary_csv_path)
-    
+                # Add UID column to existing summary csv and then save output
+                pd.merge([summary_csv, uid_fireID_df], on='fireid').to_csv(summary_csv_path)
+        
+        except filelock.Timeout:
+            print("Could not acquire lock on file after waiting", flush=True)
+
     return uid_fireID_list
 
 
@@ -110,7 +120,7 @@ def calculate_burnbndy_dist(severity_tif):
     # Convert pixel distances to km units
     pixel_size = abs(severity_tif.rio.transform()[0])  # assuming square pixels
     print(f'pixel size: {pixel_size}')
-    distance_km_arr = np.ceil(distance_arr * pixel_size * 10**-2)
+    distance_km_arr = np.ceil(distance_arr * pixel_size * 10**-3)
     distance_km_arr = np.where(distance_km_arr > 127, 127, distance_km_arr) # if >127*100m away, can't be repr with int8, but set as maxval
     distance_km_tif = severity_tif.copy(data=distance_km_arr)
 
@@ -128,7 +138,7 @@ def update_recovery_tif_missingdatavals(recovery_tif, future_dist_agdev_mask, te
         recovery_tif.data)
 
     recovery_tif.data[:] = np.where(
-        (future_dist_agdev_mask > 0) | (temporal_coverage_qa > 0) | (matched_group_temporal_coverage_qa > 0) | (severity_tif < 2), 
+        (future_dist_agdev_mask > 0) | (temporal_coverage_qa > 0) | (matched_group_temporal_coverage_qa > 0) | (severity_tif < 2) | (severity_tif > 4), 
         -128, 
         recovery_tif.data).astype(np.int8)
 
@@ -209,7 +219,7 @@ def add_fire_out_raster(perfire_config, uid, fireid, num_recovery_tifs, out_rast
     out_raster['UID_to'].data[:] = np.where(recovery_available_mask, uid % 100, out_raster['UID_to'].data).squeeze().astype(np.int8)
     out_raster['severity'].data[:] = np.where(recovery_available_mask, severity_tif, out_raster['severity'].data).squeeze().astype(np.int8)
     out_raster['fire_yr'].data[:] = np.where(recovery_available_mask, fire_yr-1982, out_raster['fire_yr'].data).squeeze().astype(np.int8)
-    out_raster['burn_bndy_dist_km_upperbound'].data[:] = np.where(recovery_available_mask, distance_km_tif, out_raster['burn_bndy_dist_km_upperbound'].data).squeeze().astype(np.int8)
+    out_raster['burn_bndy_dist'].data[:] = np.where(recovery_available_mask, distance_km_tif, out_raster['burn_bndy_dist'].data).squeeze().astype(np.int8)
     
     # Memory management
     del severity_tif, vegetation_tif, distance_km_tif, recovery_tif, matched_recovery, baseline_recovery

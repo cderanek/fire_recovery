@@ -70,7 +70,8 @@ def aggregate_recovery_summaries(
 def merge_all_recovery_rasters(merged_recovery_path, total_aggregate_maps):
     '''Once all subsets of fires have been merged by aggregate_recovery_summaries, merge all the aggregate recovery maps into 1 final map.
     '''
-    all_rasters = glob.glob(os.path.join(os.dirname(merged_recovery_path), 'merged_recovery_time_*.tif'))
+    last_band_name = band_names[-1]
+    all_rasters = glob.glob(os.path.join(os.dirname(merged_recovery_path), f'merged_{last_band_name}_*.tif'))
 
     while len(all_rasters)<total_aggregate_maps:
         # wait until all jobs finish
@@ -93,7 +94,8 @@ def merge_all_recovery_rasters(merged_recovery_path, total_aggregate_maps):
         
         del rasters_to_merge, merged_raster
         gc.collect()
-        
+    
+    # Export nc file
     cmd = [
         'gdal_merge.py',
         '-o', merged_recovery_path,

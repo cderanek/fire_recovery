@@ -13,17 +13,18 @@ import os, gc
 
 def gridmet_download_clip(WGET_FILE, DATA_DIR, ROI_PATH):
     ROI = gpd.read_file(ROI_PATH)
-
-    # Change to data download directory
-    os.chdir(DATA_DIR)
     
     # Get wget commands -> organize by product
     wget_commands = open(WGET_FILE, 'r').readlines()[1:]
-    all_products = np.unique([c.split('/')[-1].split('_')[0] for c in wget_commands if 'pdsi' not in c])
+    all_products = np.unique([c.split('/')[-1].split('_')[0] for c in wget_commands])# if 'pdsi' in c])
     wget_commands_byprod = {
         prod: [c for c in wget_commands if prod in c]
         for prod in all_products
     }
+
+    # Change to data download directory
+    cwd = os.getcwd()
+    os.chdir(DATA_DIR)
     
     # For each product, output a .nc file with the monthly values for all years, clipped to our ROI
     for prod in all_products:
@@ -31,7 +32,7 @@ def gridmet_download_clip(WGET_FILE, DATA_DIR, ROI_PATH):
         
         # Get command and output file name
         wget_commands = wget_commands_byprod[prod]
-        f_new = wget_commands[0].split('/')[-1].split('_')[0] + '_clipped'
+        f_new = wget_commands[0].split('/')[-1].split('_')[0].split('.nc')[0].strip(' \n') + '_clipped'
         all_yrs_rasters = {
             'sum': [],
             'mean': []
@@ -44,6 +45,7 @@ def gridmet_download_clip(WGET_FILE, DATA_DIR, ROI_PATH):
             
             print(f'\tDownloading: {f}', flush=True)
             subprocess.run(wget_line, shell=True)
+            print(f'\tComplete.', flush=True)
                 
             # Open the NetCDF file
             dataset = xr.open_dataset(f, decode_coords="all")
@@ -97,6 +99,9 @@ def gridmet_download_clip(WGET_FILE, DATA_DIR, ROI_PATH):
         # Memory management
         del all_yrs_rasters, out_sum, out_mean
         gc.collect()
+
+    # change back to original dir
+    os.chdir(cwd)
     
     pass
 
@@ -120,7 +125,7 @@ def calculate_anomaly(nc_path, reference_yrs_range=None, out_path=None):
     # Calculate monthly mean, std
     monthly_mean = temp_da.copy().groupby('month').mean(dim='time', skipna=True)
     monthly_std = temp_da.groupby('month').std(dim='time', skipna=True)
-    monthly_std = xr.where(monthly_std == 0, np.nan, monthly_std) # avoiding divide by 0 errors
+    # monthly_std = xr.where(monthly_std == 0, np.nan, monthly_std) # avoiding divide by 0 errors
     
     del temp_da
     gc.collect()
@@ -128,8 +133,7 @@ def calculate_anomaly(nc_path, reference_yrs_range=None, out_path=None):
     # Build a new anomaly xarray, using the shape, properties of the original xarray
     fill_val = np.iinfo(np.int16).min
     monthly_anomalies_da = monthly_da.copy()
-    monthly_anomalies_da[data_var].data = np.full_like(monthly_da[data_var].data, fill_value=fill_val)
-    # print(monthly_anomalies_da)
+    monthly_anomalies_da[data_var].data[:] = np.full_like(monthly_da[data_var].data, fill_value=fill_val)
     
     # Update each date with the anomaly for that date
     for date in monthly_da.time.values:
@@ -137,13 +141,14 @@ def calculate_anomaly(nc_path, reference_yrs_range=None, out_path=None):
         curr_month_orig = monthly_da.sel(time=date)
         month_int = pd.to_datetime(date).month
         curr_month_anom = (curr_month_orig - monthly_mean.sel(month=month_int)) / monthly_std.sel(month=month_int)
+
         # Update the relevant date in monthly_anomalies_da
         monthly_anomalies_da.sel(time=date)[data_var].data[:] = curr_month_anom[data_var].data    
     
     # Apply scaling, set nan value, store as int16 for lower memory usage
     print(f'Applying scaling factor', flush=True)
     scaling_factor = 10**3
-    monthly_anomalies_da[data_var].data = np.round(np.nan_to_num(monthly_anomalies_da[data_var].data * scaling_factor, nan=fill_val)).astype('int')
+    monthly_anomalies_da[data_var].data[:] = np.round(np.nan_to_num(monthly_anomalies_da[data_var].data * scaling_factor, nan=fill_val)).astype('int')
     print(np.nanmin(monthly_anomalies_da[data_var].data), np.nanmax(monthly_anomalies_da[data_var].data))
     if np.nanmin(monthly_anomalies_da[data_var].data) < np.iinfo(np.int16).min:
         print(f'ERROR WITH {data_var}: actual min {np.nanmin(monthly_anomalies_da[data_var].data)} < {np.iinfo(np.int16).min}')
@@ -180,6 +185,7 @@ def calculate_anomaly(nc_path, reference_yrs_range=None, out_path=None):
     
     pass
 
+
 def calculate_water_yr_avgs(nc_path, annual_agg_type='sum'):
     print(f'Opening {nc_path}', flush=True)
     monthly_da = xr.open_dataset(nc_path, decode_coords="all")
@@ -196,6 +202,7 @@ def calculate_water_yr_avgs(nc_path, annual_agg_type='sum'):
     monthly_da = monthly_da.assign_coords(month=monthly_da.time.dt.month)
     monthly_da = monthly_da.assign_coords(year=monthly_da.time.dt.year)
     monthly_da = monthly_da.assign_coords(water_yr=monthly_da.year - (((12 - monthly_da.month) // 2) > 0).astype(int))
+    monthly_da = monthly_da[data_var]
 
     if annual_agg_type == 'sum':
         # calculate water year total sum
@@ -208,24 +215,34 @@ def calculate_water_yr_avgs(nc_path, annual_agg_type='sum'):
     # calculate avg, std over all water years
     all_time_da_mean = annual_da.mean(dim='water_yr', skipna=True)
     all_time_da_std = annual_da.std(dim='water_yr', skipna=True)
-    # all_time_da_std = xr.where(all_time_da_std == 0, np.nan, all_time_da_std) # avoiding divide by 0 errors
+    all_time_da_std = all_time_da_std.where(all_time_da_std != 0, other=np.nan) # avoiding divide by 0 errors
 
     # calculate water yr anomaly
+    scaling_factor = 10**3
     annual_da_anom = (annual_da - all_time_da_mean) / all_time_da_std
+    print(annual_da_anom)
+    fill_val = np.iinfo(np.int16).min
+    annual_da_anom.data[:] = np.round(np.nan_to_num(annual_da_anom * scaling_factor, nan=fill_val)).astype('int')
+    print(np.nanmin(annual_da_anom), np.nanmax(annual_da_anom))
+    if np.nanmin(annual_da_anom) < np.iinfo(np.int16).min:
+        print(f'ERROR WITH PRECIP ANOM: actual min {np.nanmin(annual_da_anom)} < {np.iinfo(np.int16).min}')
+    if np.nanmax(annual_da_anom) > np.iinfo(np.int16).max:
+        print(f'ERROR WITH PRECIP ANOM: actual max {np.nanmax(annual_da_anom)} > {np.iinfo(np.int16).max}')
+    
 
     print(f'Saving out_nc file', flush=True)
     out_path = nc_path.replace('.nc', f'_wateryr_{annual_agg_type}.nc')
-    annual_da = annual_da.rename({data_var: data_var+'_wateryr_'+annual_agg_type})
+    annual_da = annual_da.rename({'water_yr': data_var+'_wateryr_'+annual_agg_type})
     annual_da.rio.write_crs(orig_crs, inplace=True).to_netcdf(out_path)
     print(f'Saved {out_path}', flush=True)
 
     out_path = nc_path.replace('.nc', f'_alltimeavg_wateryr_{annual_agg_type}.nc')
-    all_time_da_mean = all_time_da_mean.rename({data_var: data_var+'_alltimeavg_wateryr_'+annual_agg_type})
+    all_time_da_mean = all_time_da_mean.rename(data_var+'_alltimeavg_wateryr_'+annual_agg_type)
     all_time_da_mean.rio.write_crs(orig_crs, inplace=True).to_netcdf(out_path)
     print(f'Saved {out_path}', flush=True)
     
     out_path = nc_path.replace('.nc', f'_wateryr_{annual_agg_type}_anom.nc')
-    annual_da_anom = annual_da_anom.rename({data_var: data_var+'_wateryr_'+annual_agg_type+'_anom'})
+    annual_da_anom = annual_da_anom.rename(data_var+'_wateryr_'+annual_agg_type+'_anom')
     annual_da_anom.rio.write_crs(orig_crs, inplace=True).to_netcdf(out_path)
     print(f'Saved {out_path}', flush=True)
     

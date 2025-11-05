@@ -6,16 +6,22 @@ import numpy as np
 import os
 
 TESTING=False
-FEATURE_NAMES = [
-    'elevation', 'aspect', 'slope', 
-    'burn_bndy_dist_km', 'severity', 'count_burned_highsev_300mbuffer',  'count_pixels_unburnedlowsev_matchveg_300mbuffer'
-    'vegetation_type', 
-    'wateryr_avg_pr_total', 'hot_drought_categories',
-    '1yrpre_winter_maxtempz_avg', '3yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', '3yrpost_winter_maxtempz_avg',
-    '1yrpre_summer_maxtempz_avg', '3yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', '3yrpost_summer_maxtempz_avg',
-    '1yrpre_summer_pdsi_avg', '3yrpre_summer_pdsi_avg', '1yrpost_summer_pdsi_avg', '3yrpost_summer_pdsi_avg',
-    '10yr_fire_count', 'avg_annual_fires_since84'
-    ]
+FEATURE_NAMES = ['vegetation_type', 'severity', 'burn_bndy_dist_km_upperbound', 
+    'count_pixels_unburnedlowsev_matchveg_300mbuffer', 'count_burned_highsev_300mbuffer', 
+    '1yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', 
+    '1yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', 
+    '1yrpre_pdsi_avg', '1yrpost_pdsi_avg', 
+    '1yrpre_vpd_dry_anom', '1yrpost_vpd_dry_anom']
+# [
+#     'elevation', 'aspect', 'slope', 
+#     'burn_bndy_dist_km', 'severity', 'count_burned_highsev_300mbuffer',  'count_pixels_unburnedlowsev_matchveg_300mbuffer'
+#     'vegetation_type', 
+#     'wateryr_avg_pr_total', 'hot_drought_categories',
+#     '1yrpre_winter_maxtempz_avg', '3yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', '3yrpost_winter_maxtempz_avg',
+#     '1yrpre_summer_maxtempz_avg', '3yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', '3yrpost_summer_maxtempz_avg',
+#     '1yrpre_summer_pdsi_avg', '3yrpre_summer_pdsi_avg', '1yrpost_summer_pdsi_avg', '3yrpost_summer_pdsi_avg',
+#     '10yr_fire_count', 'avg_annual_fires_since84'
+#     ]
 
 ### OUTPUT FILE PATHS
 output_dir = '/u/project/eordway/shared/surp_cd/fire_recovery/data/exploratory_xgboost'
