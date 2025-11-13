@@ -30,7 +30,6 @@ del uid_to
 gc.collect()
 
 recovery_time, topo = reproj_align_rasters('reproj_match', recovery_time, topo)
-print(topo.shape)
 # Extract base data
 print('BASE DATA')
 # for unrecovered pixels, recovery time is time at the last date observed unrecovered
@@ -89,13 +88,13 @@ print('MERGE')
 
 predictor_vars = {
     var_name: (recovery_time.dims, open_var(var_name).data.squeeze())
-    for var_name in FEATURE_NAMES
+    for var_name in FEATURE_NAMES_MERGED
 }
 predictor_vars['uid'] = (recovery_time.dims, uid.data.squeeze())
 predictor_vars['elevation'] = (recovery_time.dims, elev_data.squeeze())
 predictor_vars['aspect'] = (recovery_time.dims, aspect_data.squeeze())
-predictor_vars['slope']: (recovery_time.dims, slope_data.squeeze())
-predictor_vars['wateryr_avg_pr_total']: (recovery_time.dims, np.round(hist_precip.data).squeeze())
+predictor_vars['slope'] = (recovery_time.dims, slope_data.squeeze())
+predictor_vars['wateryr_avg_pr_total'] = (recovery_time.dims, np.round(hist_precip.data).squeeze())
 
 predictors_ds = (
     xr.Dataset(predictor_vars)
@@ -103,6 +102,9 @@ predictors_ds = (
         .rio.set_spatial_dims(x_dim='x', y_dim='y', inplace=True)
     )
 predictors_ds['spatial_ref'] = recovery_time.spatial_ref
+
+del predictor_vars
+gc.collect()
 
 for var_name in predictors_ds.data_vars:
     predictors_ds[var_name].rio.write_crs(recovery_time.spatial_ref.crs_wkt, inplace=True)
@@ -143,6 +145,37 @@ for var_name in predictors_ds.data_vars:
     
     sampled_df[var_name] = [d[0] for d in sampled_vals]
 
+# Save predictors to tif (if memory allows)
+try: 
+    predictors_ds = predictors_ds.chunk(
+        {"y": 2048, "x": 2048}
+    )
+
+    predictors_ds.rio.to_raster(
+        os.path.join(output_predictors_dir,'merged_predictors_new.tif'),
+        tiled=True,
+        windowed=True,
+        lock=False,
+    )
+except Exception as e:
+    print(f'Couldnt save full predictors to tif: {e}', flush=True)
+
+try: 
+    august_geometry = gpd.read_file('/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_reconfig_temporalmasking/AUGUSTCOMPLEX_2020_CA3966012280920200817/ca3966012280920200817_20200715_20210718_burn_bndy.shp').to_crs(recovery_time.spatial_ref.crs_wkt).geometry
+    predictors_ds_clipped = predictors_ds.rio.clip(august_geometry)
+
+    predictors_ds_clipped.rio.to_raster(
+        os.path.join(output_predictors_dir,'merged_predictors_clipped.tif'),
+        tiled=True,
+        windowed=True,
+        lock=False,
+    )
+except Exception as e:
+    print(f'Couldnt save clipped predictors to tif: {e}', flush=True)
+
+del predictors_ds
+gc.collect()
+
 for var_name in output_ds.data_vars:
     print(f'Addding {var_name}')
     # Write da to temp tiff (so we can read as rasterio object)
@@ -154,12 +187,7 @@ for var_name in output_ds.data_vars:
             sampled_vals = list(sample.sample_gen(src, sampled_coords))
     
     sampled_df[var_name] = [d[0] for d in sampled_vals]
+    print(f'\tAddded {var_name}')
 sampled_df = pd.DataFrame.from_dict(sampled_df)
 sampled_gdf = gpd.GeoDataFrame(sampled_df, geometry=gdf.geometry, crs=recovery_time.spatial_ref.crs_wkt)
 sampled_gdf.to_file(os.path.join(output_dir, 'sampled_points_min_predictors_outcomes.gpkg'))
-
-# Save predictors to tif (if memory allows)
-try: 
-    predictors_ds.rio.to_raster(os.path.join(output_predictors_dir,'merged_predictors.tif'))
-except Exception as e:
-    print(f'Couldnt save predictors to tif: {e}', flush=True)

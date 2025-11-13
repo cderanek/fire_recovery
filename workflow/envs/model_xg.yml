@@ -1,0 +1,27 @@
+name: MODEL_XG
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - pandas
+  - seaborn
+  - scipy
+  - matplotlib
+  - optuna
+  - py-xgboost        # XGBoost Python bindings
+  - lifelines
+  - shap
+  - rasterio
+  - rioxarray
+  - shapely>=2.0
+  - geopandas>=0.14
+  - scikit-learn
+  # Common deps that prevent version conflicts for geo/ML stack
+  - fiona
+  - pyproj
+  - gdal
+  - xarray
+  - tqdm
+  - numpy
+  - joblib

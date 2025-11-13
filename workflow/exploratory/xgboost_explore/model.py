@@ -5,43 +5,83 @@ from sklearn.model_selection import train_test_split
 import xgboost as xgb
 from merge_predictor_layers_info import *
 from model_vis import *
+import numpy as np
+np.random.seed(42)
 
+# Use MODEL_XG venv
 
-# Read sampled points CSV
-sampled_pts = gpd.read_file(os.path.join(output_dir, 'sampled_points_allpredictors_outcomes.shp'))
+# Specify FEATURE_NAMES of interest:
+FEATURE_NAMES = ['vegetation_type', 'severity', 'burn_bndy_dist_km_upperbound', 
+    'count_pixels_unburnedlowsev_matchveg_300mbuffer', 'count_burned_highsev_300mbuffer', 
+    # '1yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', 
+    # '1yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', 
+    '1yrpre_pdsi_avg', '1yrpost_pdsi_avg', 
+    '1yrpre_vpd_dry_anom', '1yrpost_vpd_dry_anom',
+    'elevation', 'aspect', 'slope', 'wateryr_avg_pr_total']
 
-def format_survival_data(df, feature_names=FEATURE_NAMES):
+CATEGORICAL_VARS = ['aspect', 'vegetation_type']#, 'hot_drought_categories']
+
+def format_survival_data(df, feature_names=FEATURE_NAMES, categorical_vars=CATEGORICAL_VARS):
     df['Survival_label_lower_bound'] = df['recovery_time_yrs'].astype('float')
     df['Survival_label_upper_bound'] = df[['recovery_time_yrs', 'recovery_status_sampled']].apply(lambda s: 
         s['recovery_time_yrs'] if s['recovery_status_sampled']==1 else np.inf,
         axis=1)
     df = df.drop(['recovery_time_yrs', 'recovery_status_sampled'], axis=1)
-    categorical_vars = ['aspect', 'vegetation_type', 'hot_drought_categories']
+
+    for col in feature_names:
+        if '_anom' in col or 'maxtempz' in col:
+            df[col] = np.round(df[col] * 10**-2) * 10**-1
+            df = df[np.abs(df[col]) <= 10]
+
+        if 'pdsi' in col:
+            df[col] = df[col] * 10**-2
+
+        if col not in categorical_vars:
+            df[col] = df[col].astype(np.float32)
+
+    # Update units
+    df['burn_bndy_dist_km_upperbound'] = df['burn_bndy_dist_km_upperbound'] / 10 # convert to km (currently in 100s of meters)
+    df['count_pixels_unburnedlowsev_matchveg_300mbuffer'] = df['count_pixels_unburnedlowsev_matchveg_300mbuffer'] * 10 # convert to count (currently in 10s of pixels)
+    df['count_burned_highsev_300mbuffer'] = df['count_burned_highsev_300mbuffer'] * 10 # convert to count (currently in 10s of pixels)
+
+    # Drop non-vegetated veg types
+    df = df[(df['vegetation_type']!=7) & (df['vegetation_type']!=11)]
+    
     for col in categorical_vars:
         df[col] = df[col].astype('category')
 
-    all_cols = feature_names + ['Survival_label_lower_bound', 'Survival_label_upper_bound']
-    return df[all_cols]
+    all_cols = feature_names + ['Survival_label_lower_bound', 'Survival_label_upper_bound', 'uid']
+    df = df[all_cols].dropna(axis=1, how='all')
+    return df
 
-df = format_survival_data(sampled_pts)
+
+# Read sampled points CSV
+sampled_pts = gpd.read_file(os.path.join(output_dir, 'sampled_points_min_predictors_outcomes.gpkg'))
+df = format_survival_data(sampled_pts, FEATURE_NAMES, CATEGORICAL_VARS)
 
 # Plot distributions of sampled points
-plot_distributions(sampled_pts)
+plot_distributions(df)
 
 # Train model
 # Split train, test by fireid
 y_lower_bound = df['Survival_label_lower_bound']
 y_upper_bound = df['Survival_label_upper_bound']
 X = df[FEATURE_NAMES]
+print("\n--- Input dtype summary ---")
+for c in X.columns:
+    if str(X[c].dtype).startswith("category"):
+        print(f"{c}: categorical ({len(X[c].cat.categories)} cats)")
+    else:
+        print(f"{c}: {X[c].dtype}")
+
 fire_ids = np.unique(df['uid'])
 train_ids, test_ids = train_test_split(fire_ids, test_size=0.2, random_state=42)
 train_index = df['uid'].isin(train_ids)
 valid_index = df['uid'].isin(test_ids)
-
-dtrain = xgb.DMatrix(X.iloc[train_index, :], enable_categorical=True)
+dtrain = xgb.DMatrix(X[train_index], enable_categorical=True, feature_names=list(X.columns))
 dtrain.set_float_info('label_lower_bound', y_lower_bound[train_index])
 dtrain.set_float_info('label_upper_bound', y_upper_bound[train_index])
-dvalid = xgb.DMatrix(X.iloc[valid_index, :], enable_categorical=True)
+dvalid = xgb.DMatrix(X[valid_index], enable_categorical=True, feature_names=list(X.columns))
 dvalid.set_float_info('label_lower_bound', y_lower_bound[valid_index])
 dvalid.set_float_info('label_upper_bound', y_upper_bound[valid_index])
 
@@ -87,7 +127,8 @@ watchlist = [(dtrain, 'train'), (dvalid, 'eval')]
 bst = xgb.train(params, dtrain, num_boost_round=10000,
                 evals=watchlist, evals_result=evals_result,
                 early_stopping_rounds=50)
-
+print('dtrain columns')
+print(dtrain.feature_names)
 # Run prediction on the validation set
 df_pred = pd.DataFrame({'Label (lower bound)': y_lower_bound[valid_index],
                    'Label (upper bound)': y_upper_bound[valid_index],
@@ -96,13 +137,34 @@ print(df_pred)
 # Show only data points with right-censored labels
 print(df_pred[np.isinf(df_pred['Label (upper bound)'])])
 
+X_for_shap = X.copy()
+cat_cols = X.select_dtypes(include=['category']).columns
+categorical_mappings = {}
+for col in CATEGORICAL_VARS:
+    if col in X.columns:
+        mapping = dict(enumerate(X[col].cat.categories))
+        categorical_mappings[col] = mapping
+        X_for_shap[col] = X_for_shap[col].cat.codes
+
 # Save trained model
-bst.save_model('aft_best_model.json')
+bst.save_model(os.path.join(output_dir, 'aft_best_model.json'))
+
+# Save concordance index
+# C-index: probability model correctly orders survival times
+# Higher is better (0.5 = random, 1.0 = perfect)
+predictions = bst.predict(dvalid)
+c_index = concordance_index(y_lower_bound[valid_index], predictions, ~np.isinf(y_upper_bound[valid_index]))
+print(f"C-index: {c_index}")  # Target: > 0.7 is decent, > 0.8 is good
 
 # Visualize results
 # call helper in model_vis.py
-plot_model_results(study, bst, X)
+plots_dir = os.path.join(output_dir, 'xgboost_results') 
+# plot_model_results(study, evals_result, bst, X, X_for_shap, y_lower_bound, FEATURE_NAMES, output_dir)
 
 
 # Apply model to full map
-predict_raster_with_nodata(predictors_path, truey_path, bst, FEATURE_NAMES, cat_cols, output_path='predictions.tif', nodata_value=-9999)
+predictors_path = 'data/exploratory_xgboost/predictor_layers/merged_predictors_clipped.tif'
+output_predictions = 'data/exploratory_xgboost/model_results'
+predict_raster(raster_path=predictors_path, 
+        truey_path=None, model=bst, feature_names=FEATURE_NAMES, categorical_mappings = categorical_mappings,
+        cat_cols=CATEGORICAL_VARS, output_dir=output_predictions)

@@ -6,22 +6,13 @@ import numpy as np
 import os
 
 TESTING=False
-FEATURE_NAMES = ['vegetation_type', 'severity', 'burn_bndy_dist_km_upperbound', 
+FEATURE_NAMES_MERGED = ['vegetation_type', 'severity', 'burn_bndy_dist_km_upperbound', 
     'count_pixels_unburnedlowsev_matchveg_300mbuffer', 'count_burned_highsev_300mbuffer', 
     '1yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', 
     '1yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', 
     '1yrpre_pdsi_avg', '1yrpost_pdsi_avg', 
-    '1yrpre_vpd_dry_anom', '1yrpost_vpd_dry_anom']
-# [
-#     'elevation', 'aspect', 'slope', 
-#     'burn_bndy_dist_km', 'severity', 'count_burned_highsev_300mbuffer',  'count_pixels_unburnedlowsev_matchveg_300mbuffer'
-#     'vegetation_type', 
-#     'wateryr_avg_pr_total', 'hot_drought_categories',
-#     '1yrpre_winter_maxtempz_avg', '3yrpre_winter_maxtempz_avg', '1yrpost_winter_maxtempz_avg', '3yrpost_winter_maxtempz_avg',
-#     '1yrpre_summer_maxtempz_avg', '3yrpre_summer_maxtempz_avg', '1yrpost_summer_maxtempz_avg', '3yrpost_summer_maxtempz_avg',
-#     '1yrpre_summer_pdsi_avg', '3yrpre_summer_pdsi_avg', '1yrpost_summer_pdsi_avg', '3yrpost_summer_pdsi_avg',
-#     '10yr_fire_count', 'avg_annual_fires_since84'
-#     ]
+    '1yrpre_vpd_dry_anom', '1yrpost_vpd_dry_anom'] # just subset of feature names that are in the full CA merged layers
+FEATURE_NAMES = FEATURE_NAMES_MERGED + ['elevation', 'aspect', 'slope', 'wateryr_avg_pr_total']
 
 ### OUTPUT FILE PATHS
 output_dir = '/u/project/eordway/shared/surp_cd/fire_recovery/data/exploratory_xgboost'
@@ -49,7 +40,7 @@ def open_var(variable, test=TESTING):
     if TESTING:
         path = f'/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_shap/testing/merged_{variable}_200_300.tif'
     else: 
-        path = f'/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_shap/merged_{variable}.tif'
+        path = f'/u/project/eordway/shared/surp_cd/timeseries_data/data/fullCArecovery_shap2/merged_{variable}.tif'
     return rxr.open_rasterio(path).isel(band=0)
 
 # topo
